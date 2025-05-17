@@ -22,21 +22,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!currentUser.emailVerified) {
-    // User is logged in but email is not verified.
-    // Redirect to /auth, where LoginForm can show the "verify email" message.
-    // Alternatively, redirect to a dedicated /verify-email page or show an inline message here.
-    // For simplicity, we'll redirect to /auth. The LoginForm has logic to prompt for verification.
-    // You could also pass a specific state to AuthPage to show a message.
-    return (
-      <Navigate
-        to="/auth"
-        state={{ from: location, needsVerification: true }}
-        replace
-      />
-    );
-  }
-
-  // User is logged in and email is verified (or verification not strictly enforced here).
+  // User is logged in (email is inherently verified with Google Sign-In).
   return children;
 };

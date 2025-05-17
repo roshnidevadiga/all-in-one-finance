@@ -1,5 +1,4 @@
 import React from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardHeader,
@@ -7,44 +6,22 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { LoginForm } from "../components/auth/LoginForm";
-import { SignupForm } from "../components/auth/SignupForm";
+import { GoogleSignInButton } from "../components/auth/GoogleSignInButton";
 
 export const AuthPage: React.FC = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
-      <Tabs defaultValue="login" className="w-full max-w-md">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="signup">Sign Up</TabsTrigger>
-        </TabsList>
-        <TabsContent value="login">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">Login</CardTitle>
-              <CardDescription>
-                Welcome back! Please enter your details.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <LoginForm />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="signup">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">Create an Account</CardTitle>
-              <CardDescription>
-                Enter your email and password to sign up.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SignupForm />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Welcome!</CardTitle>
+          <CardDescription>
+            Sign in with your Google account to continue.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center">
+          <GoogleSignInButton />
+        </CardContent>
+      </Card>
     </div>
   );
 };

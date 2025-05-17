@@ -22,13 +22,7 @@ function App() {
         {/* If logged in and trying to access /auth, redirect to home */}
         <Route
           path="/auth"
-          element={
-            currentUser && currentUser.emailVerified ? (
-              <Navigate to="/" replace />
-            ) : (
-              <AuthPage />
-            )
-          }
+          element={currentUser ? <Navigate to="/" replace /> : <AuthPage />}
         />
 
         {/* For now, MainPage is not protected. We will add ProtectedRoute next. */}
