@@ -1,35 +1,40 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthPage } from "./pages/AuthPage";
+import { MainPage } from "./pages/MainPage";
+// We will create ProtectedRoute next
+// import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import "./App.css"; // You can keep or remove this if not needed for global styles beyond index.css
+import { useAuth } from "./contexts/AuthContext";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    // You can render a global loading spinner here if you like
+    // For example, from shadcn: import { Icons } from "@/components/icons";
+    // return <div className="flex items-center justify-center min-h-screen"><Icons.spinner className="h-10 w-10 animate-spin" /></div>;
+    return <div>Loading application...</div>; // Simple loading text for now
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <BrowserRouter>
+      <Routes>
+        {/* If logged in and trying to access /auth, redirect to home */}
+        <Route
+          path="/auth"
+          element={currentUser ? <Navigate to="/" replace /> : <AuthPage />}
+        />
+
+        {/* For now, MainPage is not protected. We will add ProtectedRoute next. */}
+        {/* Later this will be: <Route path="/" element={<ProtectedRoute><MainPage /></ProtectedRoute>} /> */}
+        <Route path="/" element={<MainPage />} />
+
+        {/* You can add a 404 Not Found route here if needed */}
+        {/* <Route path="*" element={<div>Page Not Found</div>} /> */}
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
