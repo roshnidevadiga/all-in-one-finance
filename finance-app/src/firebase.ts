@@ -7,15 +7,16 @@ import { getAnalytics } from "firebase/analytics";
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Read from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyA6zYY0xC2SmAJ7XfViy7Ps48O1rnospys",
-  authDomain: "all-in-one-finance-ced87.firebaseapp.com",
-  projectId: "all-in-one-finance-ced87",
-  storageBucket: "all-in-one-finance-ced87.firebasestorage.app",
-  messagingSenderId: "937787712365",
-  appId: "1:937787712365:web:80ce1e00d2d7177b437064",
-  measurementId: "G-SSXWG7EYR0",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  // measurementId is optional, only include if you use it and have it in your .env
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || undefined 
 };
 
 // Initialize Firebase
@@ -23,6 +24,13 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Authentication and get a reference to the service
 const auth = getAuth(app);
-const analytics = getAnalytics(app);
+
+// Initialize Analytics (only if measurementId is provided and you intend to use Analytics)
+let analytics;
+if (firebaseConfig.measurementId) {
+  analytics = getAnalytics(app);
+} else {
+  console.warn("Firebase Measurement ID not found, Analytics will not be initialized.");
+}
 
 export { auth, analytics };
