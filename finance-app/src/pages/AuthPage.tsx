@@ -7,9 +7,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-// We will create these form components next
-// import { LoginForm } from '@/components/auth/LoginForm';
-// import { SignupForm } from '@/components/auth/SignupForm';
+import { LoginForm } from "../components/auth/LoginForm";
+import { SignupForm } from "../components/auth/SignupForm";
 
 export const AuthPage: React.FC = () => {
   return (
@@ -28,10 +27,7 @@ export const AuthPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* <LoginForm /> */}
-              <p className="text-center text-gray-500 dark:text-gray-400">
-                LoginForm will be here.
-              </p>
+              <LoginForm />
             </CardContent>
           </Card>
         </TabsContent>
@@ -44,10 +40,7 @@ export const AuthPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* <SignupForm /> */}
-              <p className="text-center text-gray-500 dark:text-gray-400">
-                SignupForm will be here.
-              </p>
+              <SignupForm />
             </CardContent>
           </Card>
         </TabsContent>
