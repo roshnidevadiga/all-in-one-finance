@@ -1,4 +1,4 @@
-import React from "react";
+// import React from 'react'; // Removed as it's often not needed with modern JSX transform
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthPage } from "./pages/AuthPage";
 import { MainPage } from "./pages/MainPage";
