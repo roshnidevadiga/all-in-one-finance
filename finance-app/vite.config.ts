@@ -5,6 +5,7 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: "/all-in-one-finance/",
   plugins: [
     react(),
     tailwindcss(), // Add the tailwindcss plugin here
