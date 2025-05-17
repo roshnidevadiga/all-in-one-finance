@@ -2,8 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthPage } from "./pages/AuthPage";
 import { MainPage } from "./pages/MainPage";
-// We will create ProtectedRoute next
-// import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import "./App.css"; // You can keep or remove this if not needed for global styles beyond index.css
 import { useAuth } from "./contexts/AuthContext";
 
@@ -18,17 +17,32 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         {/* If logged in and trying to access /auth, redirect to home */}
         <Route
           path="/auth"
-          element={currentUser ? <Navigate to="/" replace /> : <AuthPage />}
+          element={
+            currentUser && currentUser.emailVerified ? (
+              <Navigate to="/" replace />
+            ) : (
+              <AuthPage />
+            )
+          }
         />
 
         {/* For now, MainPage is not protected. We will add ProtectedRoute next. */}
-        {/* Later this will be: <Route path="/" element={<ProtectedRoute><MainPage /></ProtectedRoute>} /> */}
-        <Route path="/" element={<MainPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Optional: A route to specifically guide users to verify their email if you want a dedicated page */}
+        {/* <Route path="/verify-email" element={<EmailVerificationPromptPage />} /> */}
 
         {/* You can add a 404 Not Found route here if needed */}
         {/* <Route path="*" element={<div>Page Not Found</div>} /> */}
