@@ -50,53 +50,60 @@ export const MainPage: React.FC = () => {
   ];
 
   return (
-    <div className="p-8 flex flex-col items-center">
-      <h1 className="text-3xl font-bold mb-6 text-center">
-        Welcome to the Main Application
-      </h1>
-      {currentUser && (
-        <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg shadow">
-          <p className="text-lg text-center">
-            Signed in as:{" "}
-            <span className="font-semibold">
-              {currentUser.displayName || currentUser.email}
-            </span>
-          </p>
-          {currentUser.photoURL && (
-            <img
-              src={currentUser.photoURL}
-              alt="User avatar"
-              className="w-20 h-20 rounded-full mx-auto mt-3 shadow-md"
-            />
+    <div className="min-h-screen flex flex-col">
+      {/* Header with user profile and sign out */}
+      <header className="w-full p-4 bg-gray-100 dark:bg-gray-800 shadow">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-2xl font-bold">
+            Welcome to the Main Application
+          </h1>
+
+          {currentUser && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                {currentUser.photoURL && (
+                  <img
+                    src={currentUser.photoURL}
+                    alt="User avatar"
+                    className="w-10 h-10 rounded-full shadow-md"
+                  />
+                )}
+                <span className="font-medium hidden md:inline">
+                  {currentUser.displayName || currentUser.email}
+                </span>
+              </div>
+              <Button onClick={handleSignOut} variant="destructive" size="sm">
+                Sign Out
+              </Button>
+            </div>
           )}
         </div>
-      )}
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mb-8">
-        {financeTools.map((tool, index) => (
-          <Card
-            key={index}
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span className="text-2xl">{tool.icon}</span>
-                {tool.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>{tool.description}</CardDescription>
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full">Open Tool</Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
-
-      <Button onClick={handleSignOut} variant="destructive" size="lg">
-        Sign Out
-      </Button>
+      {/* Main content */}
+      <main className="flex-grow p-8 flex flex-col items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mb-8">
+          {financeTools.map((tool, index) => (
+            <Card
+              key={index}
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">{tool.icon}</span>
+                  {tool.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{tool.description}</CardDescription>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full">Open Tool</Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </main>
     </div>
   );
 };
