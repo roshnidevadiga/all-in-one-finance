@@ -3,6 +3,14 @@ import { signOut } from "firebase/auth";
 import { auth } from "../firebase"; // Adjust path if your firebase.ts is elsewhere
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../contexts/AuthContext"; // To display user info, optional
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export const MainPage: React.FC = () => {
   const { currentUser } = useAuth(); // Optional: Get user info to display
@@ -17,6 +25,29 @@ export const MainPage: React.FC = () => {
       // Handle sign-out errors if necessary (though rare for basic signOut)
     }
   };
+
+  const financeTools = [
+    {
+      title: "EMI Calculator",
+      description: "Calculate your loan EMI, interest payments and more",
+      icon: "💰",
+    },
+    {
+      title: "Investment Returns",
+      description: "Calculate returns on various investment options",
+      icon: "📈",
+    },
+    {
+      title: "Budget Planner",
+      description: "Plan and track your monthly budget",
+      icon: "📊",
+    },
+    {
+      title: "Tax Calculator",
+      description: "Estimate your income tax liability",
+      icon: "📋",
+    },
+  ];
 
   return (
     <div className="p-8 flex flex-col items-center">
@@ -40,9 +71,28 @@ export const MainPage: React.FC = () => {
           )}
         </div>
       )}
-      <p className="text-lg mb-8 text-center">
-        This is the main content area, visible after successful login.
-      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mb-8">
+        {financeTools.map((tool, index) => (
+          <Card
+            key={index}
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-2xl">{tool.icon}</span>
+                {tool.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>{tool.description}</CardDescription>
+            </CardContent>
+            <CardFooter>
+              <Button className="w-full">Open Tool</Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
 
       <Button onClick={handleSignOut} variant="destructive" size="lg">
         Sign Out
