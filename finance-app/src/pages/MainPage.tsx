@@ -54,9 +54,7 @@ export const MainPage: React.FC = () => {
       {/* Header with user profile and sign out */}
       <header className="w-full p-4 bg-gray-100 dark:bg-gray-800 shadow">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">
-            Welcome to the Main Application
-          </h1>
+          <h1 className="text-2xl font-bold">All In One Finance</h1>
 
           {currentUser && (
             <div className="flex items-center gap-4">
