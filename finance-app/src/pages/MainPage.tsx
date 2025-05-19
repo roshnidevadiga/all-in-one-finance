@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-export const MainPage: React.FC = () => {
+export const MainPage: React.FC = (): React.ReactElement => {
   const { currentUser } = useAuth(); // Optional: Get user info to display
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (): Promise<void> => {
     try {
       await signOut(auth);
-      console.log("User signed out successfully");
+      console.warn("User signed out successfully");
       // No need to navigate('/auth') here, as the AuthContext and ProtectedRoute will handle it.
     } catch (error) {
       console.error("Sign out error:", error);
@@ -71,10 +71,16 @@ export const MainPage: React.FC = () => {
                     />
                   )}
                   <span className="font-medium hidden md:inline">
-                    {currentUser.displayName || currentUser.email}
+                    {currentUser.displayName ?? currentUser.email}
                   </span>
                 </div>
-                <Button onClick={handleSignOut} variant="destructive" size="sm">
+                <Button
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                  variant="destructive"
+                  size="sm"
+                >
                   Sign Out
                 </Button>
               </div>

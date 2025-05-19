@@ -10,11 +10,15 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactNode {
   const [theme, setTheme] = useState<Theme>(() => {
     // Get from localStorage or default to dark
     const savedTheme = localStorage.getItem("theme") as Theme | null;
-    return savedTheme || "dark";
+    return savedTheme ?? "dark";
   });
 
   const [systemTheme, setSystemTheme] = useState<"dark" | "light">("dark");
@@ -22,14 +26,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Check for system preference
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const updateSystemTheme = (e: MediaQueryListEvent | MediaQueryList) => {
+    const updateSystemTheme = (
+      e: MediaQueryListEvent | MediaQueryList
+    ): void => {
       setSystemTheme(e.matches ? "dark" : "light");
     };
 
     updateSystemTheme(mediaQuery);
     mediaQuery.addEventListener("change", updateSystemTheme);
 
-    return () => mediaQuery.removeEventListener("change", updateSystemTheme);
+    return () => {
+      mediaQuery.removeEventListener("change", updateSystemTheme);
+    };
   }, []);
 
   // Apply theme when it changes
@@ -53,7 +61,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useTheme() {
+export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
 
   if (context === undefined) {
