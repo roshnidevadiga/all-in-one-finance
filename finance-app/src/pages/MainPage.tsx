@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const MainPage: React.FC = () => {
   const { currentUser } = useAuth(); // Optional: Get user info to display
@@ -56,25 +57,29 @@ export const MainPage: React.FC = () => {
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">All In One Finance</h1>
 
-          {currentUser && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                {currentUser.photoURL && (
-                  <img
-                    src={currentUser.photoURL}
-                    alt="User avatar"
-                    className="w-10 h-10 rounded-full shadow-md"
-                  />
-                )}
-                <span className="font-medium hidden md:inline">
-                  {currentUser.displayName || currentUser.email}
-                </span>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+
+            {currentUser && (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  {currentUser.photoURL && (
+                    <img
+                      src={currentUser.photoURL}
+                      alt="User avatar"
+                      className="w-10 h-10 rounded-full shadow-md"
+                    />
+                  )}
+                  <span className="font-medium hidden md:inline">
+                    {currentUser.displayName || currentUser.email}
+                  </span>
+                </div>
+                <Button onClick={handleSignOut} variant="destructive" size="sm">
+                  Sign Out
+                </Button>
               </div>
-              <Button onClick={handleSignOut} variant="destructive" size="sm">
-                Sign Out
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 
