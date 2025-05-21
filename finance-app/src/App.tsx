@@ -5,6 +5,7 @@ import { MainPage } from "./pages/MainPage";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import "./App.css"; // You can keep or remove this if not needed for global styles beyond index.css
 import { useAuth } from "./contexts/AuthContext";
+import EMICalculatorPage from "./pages/EMICalculatorPage"; // Import the new page
 
 function App() {
   const { currentUser, loading } = useAuth();
@@ -31,6 +32,16 @@ function App() {
           element={
             <ProtectedRoute>
               <MainPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Route for EMI Calculator Tool */}
+        <Route
+          path="/tools/emi-calculator"
+          element={
+            <ProtectedRoute>
+              <EMICalculatorPage />
             </ProtectedRoute>
           }
         />

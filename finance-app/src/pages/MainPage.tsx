@@ -12,9 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useNavigate } from "react-router-dom"; // Added useNavigate
 
 export const MainPage: React.FC = (): React.ReactElement => {
   const { currentUser } = useAuth(); // Optional: Get user info to display
+  const navigate = useNavigate(); // Added useNavigate hook
 
   const handleSignOut = async (): Promise<void> => {
     try {
@@ -32,6 +34,7 @@ export const MainPage: React.FC = (): React.ReactElement => {
       title: "EMI Calculator",
       description: "Calculate your loan EMI, interest payments and more",
       icon: "💰",
+      id: "emi_calculator",
     },
     {
       title: "Investment Returns",
@@ -107,7 +110,19 @@ export const MainPage: React.FC = (): React.ReactElement => {
                 <CardDescription>{tool.description}</CardDescription>
               </CardContent>
               <CardFooter>
-                <Button className="w-full">Open Tool</Button>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    if (tool.id === "emi_calculator") {
+                      void navigate("/tools/emi-calculator");
+                    } else {
+                      // Handle other tools if necessary, or alert that they are not yet implemented
+                      alert(`Tool "${tool.title}" is not yet implemented.`);
+                    }
+                  }}
+                >
+                  Open Tool
+                </Button>
               </CardFooter>
             </Card>
           ))}
