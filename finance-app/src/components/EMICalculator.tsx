@@ -346,49 +346,73 @@ const EMICalculator: React.FC = () => {
 
     if (userFrequency === "once") {
       for (const amount of prepaymentAmountsToTry) {
-        // Try prepayment at different early stages or preferred month
-        const prepaymentMonthsToTry = [2, 5, 11]; // 0-indexed (e.g., month 3, 6, 12)
+        if (amount <= 0) continue;
+        const oneTimePrepaymentMonthsSet = new Set<number>();
+
+        // Dynamic iteration for one-time prepayment months
+        const maxIterMonths = Math.min(n - 1, 120); // Iterate up to 10 years or loan term
+
+        for (let i = 0; i < maxIterMonths; i++) {
+          if (i < 24) {
+            // Every month for first 2 years
+            oneTimePrepaymentMonthsSet.add(i);
+          } else if (i < 60) {
+            // Every 3rd month for years 3-5
+            if ((i - 24) % 3 === 0) oneTimePrepaymentMonthsSet.add(i);
+          } else {
+            // Every 6th month for years 6-10
+            if ((i - 60) % 6 === 0) oneTimePrepaymentMonthsSet.add(i);
+          }
+        }
+
+        // Add user's preferred month if they specified a max prepayment amount
         if (
           !isNaN(userMaxPrepayment) &&
           userMaxPrepayment > 0 &&
-          userPrefPrepaymentMonth !== sMonth
+          userPrefPrepaymentMonth < n - 1 &&
+          userPrefPrepaymentMonth >= 0
         ) {
-          // if user specified an amount, also try their preferred month if different from loan start month
-          // and ensure it's not already in the list
-          if (!prepaymentMonthsToTry.includes(userPrefPrepaymentMonth))
-            prepaymentMonthsToTry.push(userPrefPrepaymentMonth);
+          oneTimePrepaymentMonthsSet.add(userPrefPrepaymentMonth);
         }
-        for (const prepMonth of prepaymentMonthsToTry) {
-          if (prepMonth < n && prepMonth >= 0) {
-            // Ensure prepayment month is valid and within loan tenure
-            const sim = calculateNewSchedule(
-              p,
-              rMonthly,
-              n,
-              calculatedEmi,
-              [{ month: prepMonth, amount }],
-              []
-            );
-            const interestSaved = originalTotalInterest - sim.totalInterest;
-            const tenureReduced = originalTenure - sim.actualDuration;
-            if (interestSaved > 0 || tenureReduced > 0) {
-              generatedSuggestions.push({
-                id: `prep_once_${amount.toString()}_m${(
-                  prepMonth + 1
-                ).toString()}`,
-                description: `Make a one-time prepayment of ₹${amount.toFixed(
-                  2
-                )} in ${
-                  sim.schedule[prepMonth]?.displayMonthYear ||
-                  `month ${(prepMonth + 1).toString()}`
-                }.`,
-                interestSaved: parseFloat(interestSaved.toFixed(2)),
-                tenureReducedMonths: tenureReduced,
-                newTotalInterest: parseFloat(sim.totalInterest.toFixed(2)),
-                newTenureMonths: sim.actualDuration,
-                revisedSchedule: sim.schedule,
-              });
-            }
+        // Ensure at least some default early months if loan is very short and set is empty
+        if (oneTimePrepaymentMonthsSet.size === 0 && n > 1) {
+          if (n > 2) oneTimePrepaymentMonthsSet.add(Math.min(2, n - 2)); // e.g. month 3 (0-indexed 2)
+          if (n > 5) oneTimePrepaymentMonthsSet.add(Math.min(5, n - 2)); // e.g. month 6
+          if (oneTimePrepaymentMonthsSet.size === 0)
+            oneTimePrepaymentMonthsSet.add(0); // at least the first possible month (0-indexed)
+        }
+
+        for (const prepMonth of Array.from(oneTimePrepaymentMonthsSet).sort(
+          (a, b) => a - b
+        )) {
+          // prepMonth is already 0-indexed and checked to be < n (implicitly by maxIterMonths or explicit add)
+          const sim = calculateNewSchedule(
+            p,
+            rMonthly,
+            n,
+            calculatedEmi,
+            [{ month: prepMonth, amount }],
+            []
+          );
+          const interestSaved = originalTotalInterest - sim.totalInterest;
+          const tenureReduced = originalTenure - sim.actualDuration;
+          if (interestSaved > 0 || tenureReduced > 0) {
+            generatedSuggestions.push({
+              id: `prep_once_${amount.toString()}_m${(
+                prepMonth + 1
+              ).toString()}`,
+              description: `Make a one-time prepayment of ₹${amount.toFixed(
+                2
+              )} in ${
+                sim.schedule[prepMonth]?.displayMonthYear ||
+                `month ${(prepMonth + 1).toString()}`
+              }.`,
+              interestSaved: parseFloat(interestSaved.toFixed(2)),
+              tenureReducedMonths: tenureReduced,
+              newTotalInterest: parseFloat(sim.totalInterest.toFixed(2)),
+              newTenureMonths: sim.actualDuration,
+              revisedSchedule: sim.schedule,
+            });
           }
         }
       }
