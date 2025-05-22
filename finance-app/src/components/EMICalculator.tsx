@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 
 interface AmortizationEntry {
   month: number;
@@ -17,7 +17,7 @@ interface Suggestion {
   tenureReducedMonths: number;
   newTotalInterest?: number;
   newTenureMonths?: number;
-  score?: number;
+  score: number;
   revisedSchedule: AmortizationEntry[];
 }
 
@@ -37,31 +37,36 @@ const monthNames = [
 ];
 
 const EMICalculator: React.FC = () => {
-  const currentMonth = new Date().getMonth();
+  const currentJsMonth = new Date().getMonth(); // 0-11
   const currentYear = new Date().getFullYear();
 
   const [principal, setPrincipal] = useState<string>("");
   const [duration, setDuration] = useState<string>(""); // in months
   const [annualRate, setAnnualRate] = useState<string>(""); // in percentage
   const [manualEmi, setManualEmi] = useState<string>("");
-  const [startMonth, setStartMonth] = useState<number>(currentMonth);
+  const [startMonth, setStartMonth] = useState<number>(currentJsMonth); // 0-11 for JS Date
   const [startYear, setStartYear] = useState<string>(currentYear.toString());
+
   const [amortizationSchedule, setAmortizationSchedule] = useState<
     AmortizationEntry[]
   >([]);
   const [calculatedEmi, setCalculatedEmi] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [initialCalculationDone, setInitialCalculationDone] =
+    useState<boolean>(false);
+
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isCalculatingSuggestions, setIsCalculatingSuggestions] =
     useState(false);
 
-  // State for suggestion preferences
   const [maxPrepaymentAmount, setMaxPrepaymentAmount] = useState<string>("");
-  const [prepaymentFrequency, setPrepaymentFrequency] =
-    useState<string>("once"); // once, annually, half-yearly
+  const [prepaymentFrequency, setPrepaymentFrequency] = useState<
+    "once" | "annually" | "half-yearly"
+  >("once");
   const [preferredPrepaymentMonth, setPreferredPrepaymentMonth] =
-    useState<number>(currentMonth); // 0-11
+    useState<number>(currentJsMonth); // 0-11, for the recurring prepayments
   const [maxEmiIncrease, setMaxEmiIncrease] = useState<string>("");
-  const [scoreWeightInterest, setScoreWeightInterest] = useState<number>(60); // 0-100 scale for UI
+  const [scoreWeightInterest, setScoreWeightInterest] = useState<number>(60);
 
   const [detailedScheduleToShow, setDetailedScheduleToShow] = useState<
     AmortizationEntry[] | null
@@ -69,15 +74,24 @@ const EMICalculator: React.FC = () => {
   const [showDetailedScheduleModal, setShowDetailedScheduleModal] =
     useState(false);
 
-  const handleCalculate = useCallback(() => {
+  const clearErrorsAndMessages = () => {
+    setErrorMessage("");
+  };
+
+  const handleCalculateAmortization = useCallback(() => {
+    clearErrorsAndMessages();
+    setInitialCalculationDone(false);
+
     const p = parseFloat(principal);
     const n = parseInt(duration, 10);
     const rAnnual = parseFloat(annualRate);
     const sYear = parseInt(startYear, 10);
+    const sMonth = startMonth; // 0-indexed for JS Date
 
     if (isNaN(sYear) || sYear < 1900 || sYear > 2200) {
-      alert("Please enter a valid start year (e.g., 1900-2200).");
+      setErrorMessage("Please enter a valid start year (e.g., 1900-2200).");
       setAmortizationSchedule([]);
+      setCalculatedEmi(null);
       return;
     }
 
@@ -87,62 +101,119 @@ const EMICalculator: React.FC = () => {
       isNaN(n) ||
       n <= 0 ||
       isNaN(rAnnual) ||
-      rAnnual <= 0
+      rAnnual < 0
     ) {
-      alert(
-        "Please enter valid positive numbers for principal, duration, and rate."
+      // Rate can be 0
+      setErrorMessage(
+        "Please enter valid positive numbers for Principal and Duration, and a non-negative rate."
       );
       setAmortizationSchedule([]);
       setCalculatedEmi(null);
       return;
     }
-
-    const rMonthly = rAnnual / 12 / 100;
-    let currentEmi: number;
-
-    if (manualEmi && parseFloat(manualEmi) > 0) {
-      currentEmi = parseFloat(manualEmi);
-    } else {
-      // EMI = P * r * (1+r)^n / ((1+r)^n - 1)
-      currentEmi =
-        (p * rMonthly * Math.pow(1 + rMonthly, n)) /
-        (Math.pow(1 + rMonthly, n) - 1);
-      if (isNaN(currentEmi) || !isFinite(currentEmi)) {
-        alert(
-          "Could not calculate EMI. Please check your inputs. Ensure duration is not too long or rate too small leading to instability."
+    if (rAnnual === 0 && (!manualEmi || parseFloat(manualEmi) <= 0)) {
+      if (p > 0 && n > 0) {
+        const flatEmi = p / n;
+        setCalculatedEmi(parseFloat(flatEmi.toFixed(2)));
+        const schedule: AmortizationEntry[] = [];
+        let remainingPrincipal = p;
+        for (let i = 0; i < n; i++) {
+          if (remainingPrincipal <= 0) break;
+          const paymentDate = new Date(sYear, sMonth + i, 1);
+          const displayMonthYearStr = `${
+            monthNames[paymentDate.getMonth()]
+          } ${paymentDate.getFullYear().toString()}`;
+          const principalPaidForMonth = Math.min(flatEmi, remainingPrincipal);
+          const openingBalance = remainingPrincipal;
+          remainingPrincipal -= principalPaidForMonth;
+          const closingBalance = Math.max(0, remainingPrincipal);
+          schedule.push({
+            month: i + 1,
+            displayMonthYear: displayMonthYearStr,
+            openingBalance: parseFloat(openingBalance.toFixed(2)),
+            emi: parseFloat(flatEmi.toFixed(2)),
+            principalPaid: parseFloat(principalPaidForMonth.toFixed(2)),
+            interestPaid: 0,
+            closingBalance: parseFloat(closingBalance.toFixed(2)),
+          });
+          if (closingBalance === 0) break;
+        }
+        setAmortizationSchedule(schedule);
+        setSuggestions([]);
+        setInitialCalculationDone(true);
+        return;
+      } else {
+        setErrorMessage(
+          "With 0% interest and no manual EMI, principal and duration must be positive."
         );
         setAmortizationSchedule([]);
         setCalculatedEmi(null);
         return;
       }
     }
-    setCalculatedEmi(parseFloat(currentEmi.toFixed(2)));
+
+    const rMonthly = rAnnual / 12 / 100;
+    let currentEmiVal: number;
+
+    if (manualEmi && parseFloat(manualEmi) > 0) {
+      currentEmiVal = parseFloat(manualEmi);
+    } else {
+      if (rMonthly === 0) {
+        // Should have been caught by rAnnual === 0, but as a safeguard
+        currentEmiVal = p / n;
+      } else {
+        currentEmiVal =
+          (p * rMonthly * Math.pow(1 + rMonthly, n)) /
+          (Math.pow(1 + rMonthly, n) - 1);
+      }
+      if (isNaN(currentEmiVal) || !isFinite(currentEmiVal)) {
+        setErrorMessage(
+          "Could not calculate EMI. Please check inputs. Ensure duration is not too long or rate too small."
+        );
+        setAmortizationSchedule([]);
+        setCalculatedEmi(null);
+        return;
+      }
+    }
+
+    setCalculatedEmi(parseFloat(currentEmiVal.toFixed(2)));
 
     const schedule: AmortizationEntry[] = [];
     let remainingPrincipal = p;
+    let actualLoanTermMonths = 0;
 
     for (let i = 0; i < n; i++) {
-      if (remainingPrincipal <= 0 && i > 0) break;
+      if (remainingPrincipal <= 0.005 && i > 0) {
+        // Using a small threshold for early exit
+        actualLoanTermMonths = i;
+        break;
+      }
+      actualLoanTermMonths = i + 1;
 
-      const paymentDate = new Date(sYear, startMonth + i, 1);
+      const paymentDate = new Date(sYear, sMonth + i, 1);
       const displayMonthYearStr = `${
         monthNames[paymentDate.getMonth()]
       } ${paymentDate.getFullYear().toString()}`;
 
       const interestForMonth = remainingPrincipal * rMonthly;
-      let principalPaidForMonth = currentEmi - interestForMonth;
+      let principalPaidForMonth = currentEmiVal - interestForMonth;
+      let actualEmiForMonth = currentEmiVal;
 
-      // Adjust EMI for the last month if remaining principal is less than calculated principal payment
-      let actualEmiForMonth = currentEmi;
-      if (principalPaidForMonth > remainingPrincipal) {
-        principalPaidForMonth = remainingPrincipal;
-        actualEmiForMonth = remainingPrincipal + interestForMonth;
+      if (
+        principalPaidForMonth > remainingPrincipal ||
+        remainingPrincipal < currentEmiVal
+      ) {
+        if (
+          remainingPrincipal + interestForMonth < currentEmiVal ||
+          i === n - 1
+        ) {
+          actualEmiForMonth = remainingPrincipal + interestForMonth;
+          principalPaidForMonth = remainingPrincipal;
+        }
       }
 
       const openingBalance = remainingPrincipal;
       remainingPrincipal -= principalPaidForMonth;
-
-      // Ensure closing balance doesn't go negative due to floating point inaccuracies
       const closingBalance = Math.max(0, remainingPrincipal);
 
       schedule.push({
@@ -154,151 +225,156 @@ const EMICalculator: React.FC = () => {
         interestPaid: parseFloat(interestForMonth.toFixed(2)),
         closingBalance: parseFloat(closingBalance.toFixed(2)),
       });
-      // If closing balance is zero, stop further calculations
-      if (
-        closingBalance === 0 &&
-        i < n - 1 &&
-        manualEmi &&
-        parseFloat(manualEmi) > 0
-      ) {
-        const monthNumberForWarning = i + 1;
-        const warningMessage =
-          "Loan will be paid off by month " +
-          monthNumberForWarning.toString() +
-          " with the provided EMI. Stopping further schedule generation.";
-        console.warn(warningMessage);
+
+      if (closingBalance === 0) {
+        actualLoanTermMonths = i + 1;
+        if (i < n - 1 && manualEmi && parseFloat(manualEmi) > 0) {
+          console.warn(
+            `Loan will be paid off by month ${actualLoanTermMonths} with the provided EMI.`
+          );
+        }
         break;
       }
     }
     setAmortizationSchedule(schedule);
-    setSuggestions([]); // Clear previous suggestions when new schedule is calculated
+    setSuggestions([]);
+    setInitialCalculationDone(true);
   }, [principal, duration, annualRate, manualEmi, startMonth, startYear]);
 
-  const calculateNewSchedule = (
-    originalPrincipal: number,
-    monthlyInterestRate: number,
-    originalDurationMonths: number,
-    emi: number,
-    prepayments: { month: number; amount: number }[], // 0-indexed month
-    emiIncreases: { startMonth: number; newEmi: number }[] // 0-indexed month
-  ): {
-    schedule: AmortizationEntry[];
-    totalInterest: number;
-    actualDuration: number;
-  } => {
-    let remainingPrincipal = originalPrincipal;
-    const newSchedule: AmortizationEntry[] = [];
-    let totalInterestPaid = 0;
-    let currentEmi = emi;
-    let actualLoanDurationMonths = 0;
+  const calculateNewSchedule = useCallback(
+    (
+      originalPrincipal: number,
+      monthlyInterestRate: number,
+      originalDurationMonths: number,
+      baseEmi: number,
+      prepayments: { month: number; amount: number }[], // 0-indexed month from loan start
+      emiIncreases: { startMonth: number; newEmi: number }[], // 0-indexed month from loan start
+      currentScheduleStartYear: number,
+      currentScheduleStartMonth: number // 0-indexed
+    ): {
+      schedule: AmortizationEntry[];
+      totalInterest: number;
+      actualDuration: number;
+    } => {
+      let remainingPrincipal = originalPrincipal;
+      const newSchedule: AmortizationEntry[] = [];
+      let totalInterestPaid = 0;
+      let currentEmi = baseEmi;
+      let actualLoanDurationMonths = 0;
 
-    // Determine the effective start year and month from component state
-    const sYear = parseInt(startYear, 10);
-    const sMonth = startMonth; // Already 0-indexed
+      for (let i = 0; i < originalDurationMonths * 2; i++) {
+        // Loop longer for early payoff
+        if (remainingPrincipal <= 0.01) break;
+        actualLoanDurationMonths = i + 1;
 
-    for (let i = 0; i < originalDurationMonths * 2; i++) {
-      // Allow longer loop for early payoff
-      if (remainingPrincipal <= 0.01) break; // Consider paid off if negligible amount remains
-      actualLoanDurationMonths = i + 1;
+        const emiIncreaseApplicable = emiIncreases.find(
+          (inc) => inc.startMonth === i
+        );
+        if (emiIncreaseApplicable) {
+          currentEmi = emiIncreaseApplicable.newEmi;
+        }
 
-      // Apply EMI increases
-      const emiIncreaseApplicable = emiIncreases.find(
-        (inc) => inc.startMonth === i
-      );
-      if (emiIncreaseApplicable) {
-        currentEmi = emiIncreaseApplicable.newEmi;
-      }
+        const prepaymentApplicable = prepayments.find(
+          (prep) => prep.month === i
+        );
+        if (prepaymentApplicable) {
+          remainingPrincipal -= prepaymentApplicable.amount;
+          if (remainingPrincipal < 0) remainingPrincipal = 0;
+        }
 
-      // Apply prepayments
-      const prepaymentApplicable = prepayments.find((prep) => prep.month === i);
-      if (prepaymentApplicable) {
-        remainingPrincipal -= prepaymentApplicable.amount;
-        if (remainingPrincipal < 0) remainingPrincipal = 0;
-      }
+        const interestForMonth = remainingPrincipal * monthlyInterestRate;
+        let principalPaidForMonth = currentEmi - interestForMonth;
+        let actualEmiForMonth = currentEmi;
 
-      const interestForMonth = remainingPrincipal * monthlyInterestRate;
-      let principalPaidForMonth = currentEmi - interestForMonth;
-      let actualEmiForMonth = currentEmi;
+        const paymentDate = new Date(
+          currentScheduleStartYear,
+          currentScheduleStartMonth + i,
+          1
+        );
+        const displayMonthYearStr = `${
+          monthNames[paymentDate.getMonth()]
+        } ${paymentDate.getFullYear().toString()}`;
 
-      if (remainingPrincipal <= 0) {
-        // Already paid off by prepayment before this EMI cycle
+        if (remainingPrincipal <= 0) {
+          // Paid off by prepayment
+          newSchedule.push({
+            month: i + 1,
+            displayMonthYear: displayMonthYearStr,
+            openingBalance: 0,
+            emi: 0,
+            principalPaid: 0,
+            interestPaid: 0,
+            closingBalance: 0,
+          });
+          continue;
+        }
+
+        if (
+          principalPaidForMonth > remainingPrincipal ||
+          (remainingPrincipal < currentEmi && remainingPrincipal > 0)
+        ) {
+          principalPaidForMonth = remainingPrincipal;
+          actualEmiForMonth = remainingPrincipal + interestForMonth;
+        }
+
+        totalInterestPaid += interestForMonth;
+        const openingBalance = remainingPrincipal;
+        remainingPrincipal -= principalPaidForMonth;
+        const closingBalance = Math.max(0, remainingPrincipal);
+
         newSchedule.push({
           month: i + 1,
-          displayMonthYear: `${
-            monthNames[new Date(sYear, sMonth + i).getMonth()]
-          } ${new Date(sYear, sMonth + i).getFullYear().toString()}`,
-          openingBalance: 0,
-          emi: 0,
-          principalPaid: 0,
-          interestPaid: 0,
-          closingBalance: 0,
+          displayMonthYear: displayMonthYearStr,
+          openingBalance: parseFloat(openingBalance.toFixed(2)),
+          emi: parseFloat(actualEmiForMonth.toFixed(2)),
+          principalPaid: parseFloat(principalPaidForMonth.toFixed(2)),
+          interestPaid: parseFloat(interestForMonth.toFixed(2)),
+          closingBalance: parseFloat(closingBalance.toFixed(2)),
         });
-        continue; // Skip to next month if already paid off
+        if (closingBalance === 0) break;
       }
+      return {
+        schedule: newSchedule,
+        totalInterest: totalInterestPaid,
+        actualDuration: actualLoanDurationMonths,
+      };
+    },
+    [startYear, startMonth]
+  ); // Added dependencies
 
-      if (
-        principalPaidForMonth > remainingPrincipal ||
-        (remainingPrincipal < currentEmi && remainingPrincipal > 0)
-      ) {
-        principalPaidForMonth = remainingPrincipal;
-        actualEmiForMonth = remainingPrincipal + interestForMonth;
-      }
-
-      totalInterestPaid += interestForMonth;
-      const openingBalance = remainingPrincipal;
-      remainingPrincipal -= principalPaidForMonth;
-      const closingBalance = Math.max(0, remainingPrincipal);
-
-      const paymentDate = new Date(sYear, sMonth + i);
-      const displayMonthYearStr = `${
-        monthNames[paymentDate.getMonth()]
-      } ${paymentDate.getFullYear().toString()}`;
-
-      newSchedule.push({
-        month: i + 1,
-        displayMonthYear: displayMonthYearStr,
-        openingBalance: parseFloat(openingBalance.toFixed(2)),
-        emi: parseFloat(actualEmiForMonth.toFixed(2)),
-        principalPaid: parseFloat(principalPaidForMonth.toFixed(2)),
-        interestPaid: parseFloat(interestForMonth.toFixed(2)),
-        closingBalance: parseFloat(closingBalance.toFixed(2)),
-      });
+  const handleGenerateSuggestions = useCallback(async () => {
+    clearErrorsAndMessages();
+    if (
+      !initialCalculationDone ||
+      amortizationSchedule.length === 0 ||
+      !calculatedEmi
+    ) {
+      setErrorMessage(
+        "Please calculate the initial amortization schedule first."
+      );
+      return;
     }
-    return {
-      schedule: newSchedule,
-      totalInterest: totalInterestPaid,
-      actualDuration: actualLoanDurationMonths,
-    };
-  };
 
-  const handleGenerateSuggestions = async () => {
     setIsCalculatingSuggestions(true);
     setSuggestions([]);
 
     const p = parseFloat(principal);
-    const n = parseInt(duration, 10);
+    const n = amortizationSchedule.length; // Use actual original tenure
     const rAnnual = parseFloat(annualRate);
-    const sYear = parseInt(startYear, 10);
-    const sMonth = startMonth;
-    const userMaxPrepayment = parseFloat(maxPrepaymentAmount);
-    const userFrequency = prepaymentFrequency;
-    const userPrefPrepaymentMonth = preferredPrepaymentMonth;
-    const userMaxEmiIncrease = parseFloat(maxEmiIncrease);
-    const weightInterest = scoreWeightInterest / 100;
-    const weightTenure = 1 - weightInterest;
 
-    if (
-      isNaN(p) ||
-      p <= 0 ||
-      isNaN(n) ||
-      n <= 0 ||
-      isNaN(rAnnual) ||
-      rAnnual < 0 ||
-      !calculatedEmi ||
-      calculatedEmi <= 0
-    ) {
-      alert(
-        "Please calculate the initial amortization schedule first with valid positive inputs..."
+    const sYear = parseInt(startYear, 10);
+    const sMonth = startMonth; // 0-indexed
+
+    const userMaxPrep = parseFloat(maxPrepaymentAmount);
+    const userPrefMonthForOnce = preferredPrepaymentMonth; // This is for "once" type, 0-11
+    const userMaxEmiInc = parseFloat(maxEmiIncrease);
+
+    const weightInt = scoreWeightInterest / 100;
+    const weightTen = 1 - weightInt;
+
+    if (p <= 0 || n <= 0 || rAnnual < 0 || calculatedEmi <= 0) {
+      setErrorMessage(
+        "Cannot generate suggestions with invalid initial loan parameters or zero EMI."
       );
       setIsCalculatingSuggestions(false);
       return;
@@ -308,23 +384,34 @@ const EMICalculator: React.FC = () => {
       (acc, entry) => acc + entry.interestPaid,
       0
     );
-    const originalTenure = amortizationSchedule.length;
-    if (originalTenure === 0) {
-      alert(
-        "Original amortization schedule is empty. Cannot generate suggestions."
-      );
+    const originalTenure = n;
+
+    if (originalTotalInterest <= 0 && p > 0) {
+      // Loan exists but no interest (e.g. 0% rate)
+      setSuggestions([
+        {
+          id: "no_interest_loan",
+          description:
+            "Loan has no interest. Prepayments will only reduce tenure.",
+          interestSaved: 0,
+          tenureReducedMonths: 0,
+          score: 0,
+          revisedSchedule: [...amortizationSchedule],
+        },
+      ]);
       setIsCalculatingSuggestions(false);
       return;
     }
-    if (p <= 0 && originalTotalInterest <= 0) {
+    if (p <= 0) {
+      // No loan to optimize
       setSuggestions([
         {
-          id: "no_suggestions_needed",
-          description:
-            "Loan principal is zero or no interest is being paid. No prepayment/EMI increase suggestions needed.",
+          id: "no_loan_to_optimize",
+          description: "No loan amount to optimize.",
           interestSaved: 0,
           tenureReducedMonths: 0,
-          revisedSchedule: [...amortizationSchedule],
+          score: 0,
+          revisedSchedule: [],
         },
       ]);
       setIsCalculatingSuggestions(false);
@@ -333,122 +420,106 @@ const EMICalculator: React.FC = () => {
 
     const allIndividualSuggestions: Suggestion[] = [];
 
-    // **1. Prepayment Scenarios (Collect All) **
-    const prepaymentAmountsToTry: number[] = [];
-    if (!isNaN(userMaxPrepayment) && userMaxPrepayment > 0) {
-      prepaymentAmountsToTry.push(userMaxPrepayment);
-    } else {
-      prepaymentAmountsToTry.push(calculatedEmi, calculatedEmi * 2); // Default: 1 or 2 EMIs
-    }
+    // Scenario 1: One-time Prepayments
+    const oneTimePrepaymentAmounts =
+      !isNaN(userMaxPrep) && userMaxPrep > 0
+        ? [userMaxPrep]
+        : [calculatedEmi, calculatedEmi * 3];
+    const oneTimePrepaymentMonths = new Set<number>();
+    // Iterate up to min(n-1, 60 months = 5 years)
+    const maxIterMonthsPrepayment = Math.min(originalTenure - 1, 60);
+    if (maxIterMonthsPrepayment > 0) {
+      for (let i = 0; i < 12 && i < maxIterMonthsPrepayment; i++)
+        oneTimePrepaymentMonths.add(i); // Each month for 1st year
+      for (let i = 12; i < maxIterMonthsPrepayment; i += 3)
+        oneTimePrepaymentMonths.add(i); // Quarterly after 1st year
+      if (
+        userPrefMonthForOnce < originalTenure - 1 &&
+        userPrefMonthForOnce >= 0
+      )
+        oneTimePrepaymentMonths.add(userPrefMonthForOnce); // Add user preferred if valid
+      // Fallback for very short loans
+      if (oneTimePrepaymentMonths.size === 0 && originalTenure > 1)
+        oneTimePrepaymentMonths.add(
+          Math.min(1, originalTenure - 2 >= 0 ? originalTenure - 2 : 0)
+        );
 
-    if (userFrequency === "once") {
-      for (const amount of prepaymentAmountsToTry) {
+      for (const amount of oneTimePrepaymentAmounts) {
         if (amount <= 0) continue;
-        const oneTimePrepaymentMonthsSet = new Set<number>();
-
-        // Dynamic iteration for one-time prepayment months
-        const maxIterMonths = Math.min(n - 1, 120); // Iterate up to 10 years or loan term
-
-        for (let i = 0; i < maxIterMonths; i++) {
-          if (i < 24) {
-            // Every month for first 2 years
-            oneTimePrepaymentMonthsSet.add(i);
-          } else if (i < 60) {
-            // Every 3rd month for years 3-5
-            if ((i - 24) % 3 === 0) oneTimePrepaymentMonthsSet.add(i);
-          } else {
-            // Every 6th month for years 6-10
-            if ((i - 60) % 6 === 0) oneTimePrepaymentMonthsSet.add(i);
-          }
-        }
-
-        // Add user's preferred month if they specified a max prepayment amount
-        if (
-          !isNaN(userMaxPrepayment) &&
-          userMaxPrepayment > 0 &&
-          userPrefPrepaymentMonth < n - 1 &&
-          userPrefPrepaymentMonth >= 0
-        ) {
-          oneTimePrepaymentMonthsSet.add(userPrefPrepaymentMonth);
-        }
-
-        // Ensure at least some default early months if loan is very short and set is empty
-        if (oneTimePrepaymentMonthsSet.size === 0 && n > 1) {
-          let addedToFallback = false;
-          // Try adding month 5 (0-indexed) if loan is ~6 months or longer, ensuring n-2 is valid
-          if (n > 5 && n - 2 >= 0) {
-            oneTimePrepaymentMonthsSet.add(Math.min(5, n - 2));
-            addedToFallback = true;
-          }
-          // Try adding month 2 (0-indexed) if loan is ~3 months or longer, ensuring n-2 is valid
-          if (n > 2 && n - 2 >= 0) {
-            const monthToAdd = Math.min(2, n - 2);
-            // Ensure we don't add same month twice if n is small, e.g. n=3, (Math.min(5,1) could be same as Math.min(2,1))
-            if (!oneTimePrepaymentMonthsSet.has(monthToAdd)) {
-              oneTimePrepaymentMonthsSet.add(monthToAdd);
-              addedToFallback = true;
-            }
-          }
-          // If still nothing added (e.g., n=2, so n-2=0), add the first possible month (0-indexed 0)
-          if (!addedToFallback && n - 1 >= 0) {
-            // Ensure loan duration allows at least month 0
-            oneTimePrepaymentMonthsSet.add(0);
-          }
-        }
-
-        for (const prepMonth of Array.from(oneTimePrepaymentMonthsSet).sort(
+        for (const prepMonth of Array.from(oneTimePrepaymentMonths).sort(
           (a, b) => a - b
         )) {
-          // prepMonth is already 0-indexed and checked to be < n (implicitly by maxIterMonths or explicit add)
+          // Ensure sorted
+          if (prepMonth < 0 || prepMonth >= originalTenure - 1) continue; // Safety check
           const sim = calculateNewSchedule(
             p,
             rMonthly,
-            n,
+            originalTenure,
             calculatedEmi,
             [{ month: prepMonth, amount }],
-            []
+            [],
+            sYear,
+            sMonth
           );
           const interestSaved = originalTotalInterest - sim.totalInterest;
           const tenureReduced = originalTenure - sim.actualDuration;
-          if (interestSaved > 0 || tenureReduced > 0) {
+          if (interestSaved > 0.01 || tenureReduced > 0) {
             allIndividualSuggestions.push({
-              id: `prep_once_${amount.toString()}_m${(
+              id: `prep_one_${amount.toString()}_m${(
                 prepMonth + 1
               ).toString()}`,
-              description: `Make a one-time prepayment of ₹${amount.toFixed(
-                2
-              )} in ${
+              description: `One-time prepayment of ₹${amount.toFixed(2)} in ${
                 sim.schedule[prepMonth]?.displayMonthYear ||
-                `month ${(prepMonth + 1).toString()}`
+                `Month ${(prepMonth + 1).toString()}`
               }.`,
               interestSaved: parseFloat(interestSaved.toFixed(2)),
               tenureReducedMonths: tenureReduced,
               newTotalInterest: parseFloat(sim.totalInterest.toFixed(2)),
               newTenureMonths: sim.actualDuration,
+              score: 0,
               revisedSchedule: sim.schedule,
             });
           }
         }
       }
-    } else if (
-      userFrequency === "annually" ||
-      userFrequency === "half-yearly"
+    }
+
+    // Scenario 2: Recurring Prepayments (Annual/Half-Yearly)
+    if (
+      prepaymentFrequency === "annually" ||
+      prepaymentFrequency === "half-yearly"
     ) {
-      for (const amount of prepaymentAmountsToTry) {
-        if (amount <= 0) continue; // only try positive amounts
+      const recurringPrepaymentAmount =
+        !isNaN(userMaxPrep) && userMaxPrep > 0 ? userMaxPrep : calculatedEmi; // Default to 1 EMI
+      if (recurringPrepaymentAmount > 0) {
         const prepayments: { month: number; amount: number }[] = [];
-        const interval = userFrequency === "annually" ? 12 : 6;
-        for (let i = 0; i < n; i++) {
-          const currentPaymentDate = new Date(sYear, sMonth + i);
-          if (
-            currentPaymentDate.getMonth() === userPrefPrepaymentMonth &&
-            i % interval ===
-              (userPrefPrepaymentMonth - sMonth + n * 12) % interval
-          ) {
-            // Ensure it's the preferred month and respects the interval from the loan start
-            if (i > 0) {
-              // Don't prepay in the very first month of loan for recurring, unless it's also preferred for a one-time.
-              prepayments.push({ month: i, amount });
+        const interval = prepaymentFrequency === "annually" ? 12 : 6;
+        // preferredPrepaymentMonth state (0-11) is used to determine the month of the year for these recurring payments.
+        // Example: if loan starts Jan 2024, preferredPrepaymentMonth is Feb (1), first annual prep is Feb 2025.
+        for (let i = 0; i < originalTenure; i++) {
+          const currentPaymentDate = new Date(sYear, sMonth + i, 1);
+          if (currentPaymentDate.getMonth() === preferredPrepaymentMonth) {
+            // preferredPrepaymentMonth is 0-11
+            // Check if this month is an "interval" month from the *start* of the preferred month series.
+            // Find first occurrence of preferredPrepaymentMonth on or after loan start.
+            let firstPrefMonthOccurrence = 0;
+            const tempDateCheck = new Date(sYear, sMonth, 1); // Renamed to avoid conflict, made const
+            while (tempDateCheck.getMonth() !== preferredPrepaymentMonth) {
+              tempDateCheck.setMonth(tempDateCheck.getMonth() + 1);
+              firstPrefMonthOccurrence++;
+            }
+            // Now check if 'i' is 'firstPrefMonthOccurrence' plus a multiple of 'interval'
+            if (
+              (i - firstPrefMonthOccurrence) % interval === 0 &&
+              i - firstPrefMonthOccurrence >= 0
+            ) {
+              if (i > 0) {
+                // Don't prepay in month 0 of loan
+                prepayments.push({
+                  month: i,
+                  amount: recurringPrepaymentAmount,
+                });
+              }
             }
           }
         }
@@ -456,23 +527,28 @@ const EMICalculator: React.FC = () => {
           const sim = calculateNewSchedule(
             p,
             rMonthly,
-            n,
+            originalTenure,
             calculatedEmi,
             prepayments,
-            []
+            [],
+            sYear,
+            sMonth
           );
           const interestSaved = originalTotalInterest - sim.totalInterest;
           const tenureReduced = originalTenure - sim.actualDuration;
-          if (interestSaved > 0 || tenureReduced > 0) {
+          if (interestSaved > 0.01 || tenureReduced > 0) {
             allIndividualSuggestions.push({
-              id: `prep_recur_${userFrequency}_${amount.toString()}`,
-              description: `Prepay ₹${amount.toFixed(2)} ${userFrequency} in ${
-                monthNames[userPrefPrepaymentMonth]
+              id: `prep_rec_${prepaymentFrequency}_${recurringPrepaymentAmount.toString()}`,
+              description: `Prepay ₹${recurringPrepaymentAmount.toFixed(
+                2
+              )} ${prepaymentFrequency} in ${
+                monthNames[preferredPrepaymentMonth]
               }.`,
               interestSaved: parseFloat(interestSaved.toFixed(2)),
               tenureReducedMonths: tenureReduced,
               newTotalInterest: parseFloat(sim.totalInterest.toFixed(2)),
               newTenureMonths: sim.actualDuration,
+              score: 0,
               revisedSchedule: sim.schedule,
             });
           }
@@ -480,235 +556,239 @@ const EMICalculator: React.FC = () => {
       }
     }
 
-    // **2. EMI Increase Scenarios (Collect All) **
-    const emiIncreasesToTry: number[] = [];
-    if (!isNaN(userMaxEmiIncrease) && userMaxEmiIncrease > 0) {
-      emiIncreasesToTry.push(calculatedEmi + userMaxEmiIncrease);
-    } else {
-      emiIncreasesToTry.push(
-        calculatedEmi * 1.05,
-        calculatedEmi * 1.1,
-        calculatedEmi * 1.15
-      ); // Default: 5%, 10%, 15% increase
-    }
-
-    for (const newEmi of emiIncreasesToTry) {
-      if (newEmi <= calculatedEmi) continue; // Only consider actual increases
+    // Scenario 3: EMI Increase
+    const emiIncreasesToConsider =
+      !isNaN(userMaxEmiInc) && userMaxEmiInc > 0
+        ? [calculatedEmi + userMaxEmiInc]
+        : [calculatedEmi * 1.05, calculatedEmi * 1.1];
+    for (const newEmi of emiIncreasesToConsider) {
+      if (newEmi <= calculatedEmi) continue;
       const sim = calculateNewSchedule(
         p,
         rMonthly,
-        n,
+        originalTenure,
         calculatedEmi,
         [],
-        [{ startMonth: 0, newEmi }]
+        [{ startMonth: 0, newEmi }],
+        sYear,
+        sMonth
       );
       const interestSaved = originalTotalInterest - sim.totalInterest;
       const tenureReduced = originalTenure - sim.actualDuration;
-      if (interestSaved > 0 || tenureReduced > 0) {
+      if (interestSaved > 0.01 || tenureReduced > 0) {
         allIndividualSuggestions.push({
-          id: `inc_emi_${String(newEmi.toFixed(0))}`,
-          description: `Increase monthly EMI to ₹${newEmi.toFixed(
-            2
-          )} from the start.`,
+          id: `emi_inc_${newEmi.toFixed(0)}`,
+          description: `Increase EMI to ₹${newEmi.toFixed(2)} from start.`,
           interestSaved: parseFloat(interestSaved.toFixed(2)),
           tenureReducedMonths: tenureReduced,
           newTotalInterest: parseFloat(sim.totalInterest.toFixed(2)),
           newTenureMonths: sim.actualDuration,
+          score: 0,
           revisedSchedule: sim.schedule,
         });
       }
     }
 
-    // --- Score individual suggestions before picking best for combined ---
+    // Score all individual suggestions
     const scoredIndividualSuggestions = allIndividualSuggestions
       .map((s) => {
-        const normalizedInterestSaved =
+        const normIntSaved =
           originalTotalInterest > 0
             ? s.interestSaved / originalTotalInterest
             : s.interestSaved > 0
             ? 1
             : 0;
-        const normalizedTenureReduced =
+        const normTenReduced =
           originalTenure > 0
             ? s.tenureReducedMonths / originalTenure
             : s.tenureReducedMonths > 0
             ? 1
             : 0;
         const score =
-          weightInterest * normalizedInterestSaved +
-          weightTenure * normalizedTenureReduced;
-        return { ...s, score };
+          (weightInt * normIntSaved + weightTen * normTenReduced) * 100; // Scale score
+        return { ...s, score: parseFloat(score.toFixed(2)) };
       })
       .sort((a, b) => b.score - a.score);
 
-    const finalSuggestions: Suggestion[] = [...scoredIndividualSuggestions]; // Start with sorted individual ones
+    const combinedSuggestions: Suggestion[] = [];
 
-    // **3. Generate More Sophisticated Combined Scenarios **
-    // Identify best individual options if they exist and are significant
-    const bestOneTimePrepaymentSuggestion = scoredIndividualSuggestions.find(
+    // Attempt combined scenarios
+    const bestOneTimePrep = scoredIndividualSuggestions.find(
       (s) =>
-        s.id.startsWith("prep_once") && s.interestSaved > calculatedEmi * 0.1 // e.g. saves at least 10% of an EMI
-    );
-    const bestEmiIncreaseSuggestion = scoredIndividualSuggestions.find(
-      (s) => s.id.startsWith("inc_emi") && s.interestSaved > calculatedEmi * 0.1
+        s.id.startsWith("prep_one_") && s.interestSaved > calculatedEmi * 0.05
     );
 
-    // C1: Best One-Time Prepayment + Modest EMI Increase
-    if (bestOneTimePrepaymentSuggestion) {
-      // const prepDetails = bestOneTimePrepaymentSuggestion.revisedSchedule; // Unused, remove
-      // Let's re-parse from ID to be safe, or extract params when creating suggestion
-      const parts = bestOneTimePrepaymentSuggestion.id.split("_");
-      const prepAmount = parseFloat(parts[2]);
-      const prepMonth = parseInt(parts[3].substring(1), 10) - 1; // 0-indexed
-
-      const modestEmiIncreaseVal = calculatedEmi * 1.05; // 5% increase
+    // C1: Best One-Time Prepayment + Modest (5%) EMI Increase
+    if (bestOneTimePrep) {
+      const prepDetails = bestOneTimePrep.id.split("_");
+      const prepAmount = parseFloat(prepDetails[2]);
+      const prepMonth = parseInt(prepDetails[3].substring(1), 10) - 1;
+      const modestEmiIncreaseVal = calculatedEmi * 1.05;
       const simC1 = calculateNewSchedule(
         p,
         rMonthly,
-        n,
+        originalTenure,
         calculatedEmi,
         [{ month: prepMonth, amount: prepAmount }],
-        [{ startMonth: 0, newEmi: modestEmiIncreaseVal }]
+        [{ startMonth: 0, newEmi: modestEmiIncreaseVal }],
+        sYear,
+        sMonth
       );
-      const interestSavedC1 = originalTotalInterest - simC1.totalInterest;
-      const tenureReducedC1 = originalTenure - simC1.actualDuration;
-      if (interestSavedC1 > 0 || tenureReducedC1 > 0) {
-        finalSuggestions.push({
-          id: `comb_bestPrep_modEMI`,
-          description: `Combine: (${bestOneTimePrepaymentSuggestion.description.replace(
-            "Make a ",
-            "make a "
-          )}) AND increase EMI by 5% to ₹${modestEmiIncreaseVal.toFixed(2)}.`,
-          interestSaved: parseFloat(interestSavedC1.toFixed(2)),
-          tenureReducedMonths: tenureReducedC1,
+      const intSavedC1 = originalTotalInterest - simC1.totalInterest;
+      const tenRedC1 = originalTenure - simC1.actualDuration;
+      if (intSavedC1 > 0.01 || tenRedC1 > 0) {
+        const normIntSaved =
+          originalTotalInterest > 0
+            ? intSavedC1 / originalTotalInterest
+            : intSavedC1 > 0
+            ? 1
+            : 0;
+        const normTenReduced =
+          originalTenure > 0 ? tenRedC1 / originalTenure : tenRedC1 > 0 ? 1 : 0;
+        const score =
+          (weightInt * normIntSaved + weightTen * normTenReduced) * 100;
+        combinedSuggestions.push({
+          id: "comb_best_prep_mod_emi",
+          description: `Combine: (${
+            bestOneTimePrep.description
+          }) AND 5% EMI increase (to ₹${modestEmiIncreaseVal.toFixed(2)}).`,
+          interestSaved: parseFloat(intSavedC1.toFixed(2)),
+          tenureReducedMonths: tenRedC1,
           newTotalInterest: parseFloat(simC1.totalInterest.toFixed(2)),
           newTenureMonths: simC1.actualDuration,
+          score: parseFloat(score.toFixed(2)),
           revisedSchedule: simC1.schedule,
         });
       }
     }
 
-    // C2: Modest One-Time Prepayment + Best EMI Increase
-    if (bestEmiIncreaseSuggestion) {
-      const modestPrepaymentAmount = calculatedEmi; // 1 EMI
-      const modestPrepaymentMonth = Math.min(2, n - 2 >= 0 ? n - 2 : 0); // Month 3 or earlier
-      const newEmiVal = parseFloat(bestEmiIncreaseSuggestion.id.split("_")[2]); // Assumes ID structure inc_emi_NEWEMI VAL
-
-      const simC2 = calculateNewSchedule(
-        p,
-        rMonthly,
-        n,
-        calculatedEmi,
-        [{ month: modestPrepaymentMonth, amount: modestPrepaymentAmount }],
-        [{ startMonth: 0, newEmi: newEmiVal }]
-      );
-      const interestSavedC2 = originalTotalInterest - simC2.totalInterest;
-      const tenureReducedC2 = originalTenure - simC2.actualDuration;
-      if (interestSavedC2 > 0 || tenureReducedC2 > 0) {
-        finalSuggestions.push({
-          id: `comb_modPrep_bestEMI`,
-          description: `Combine: Prepay ₹${modestPrepaymentAmount.toFixed(
-            2
-          )} in ${
-            simC2.schedule[modestPrepaymentMonth]?.displayMonthYear ||
-            `month ${(modestPrepaymentMonth + 1).toString()}`
-          } AND apply (${bestEmiIncreaseSuggestion.description.replace(
-            "Increase ",
-            "increase "
-          )})`,
-          interestSaved: parseFloat(interestSavedC2.toFixed(2)),
-          tenureReducedMonths: tenureReducedC2,
-          newTotalInterest: parseFloat(simC2.totalInterest.toFixed(2)),
-          newTenureMonths: simC2.actualDuration,
-          revisedSchedule: simC2.schedule,
-        });
-      }
-    }
-
-    // C3: User Prefs Combined (if both specified and potentially different from above combinations)
+    // C2: User Max Prepayment (if specified) + User Max EMI Increase (if specified)
     if (
-      !isNaN(userMaxPrepayment) &&
-      userMaxPrepayment > 0 &&
-      !isNaN(userMaxEmiIncrease) &&
-      userMaxEmiIncrease > 0
+      !isNaN(userMaxPrep) &&
+      userMaxPrep > 0 &&
+      !isNaN(userMaxEmiInc) &&
+      userMaxEmiInc > 0
     ) {
-      const prepMonthC3 =
-        userFrequency === "once" &&
-        userPrefPrepaymentMonth < n - 1 &&
-        userPrefPrepaymentMonth >= 0
-          ? userPrefPrepaymentMonth
-          : Math.min(2, n - 2 >= 0 ? n - 2 : 0);
-      const newEmiC3 = calculatedEmi + userMaxEmiIncrease;
-      const simC3 = calculateNewSchedule(
-        p,
-        rMonthly,
-        n,
-        calculatedEmi,
-        [{ month: prepMonthC3, amount: userMaxPrepayment }],
-        [{ startMonth: 0, newEmi: newEmiC3 }]
-      );
-      const interestSavedC3 = originalTotalInterest - simC3.totalInterest;
-      const tenureReducedC3 = originalTenure - simC3.actualDuration;
-      if (interestSavedC3 > 0 || tenureReducedC3 > 0) {
-        // Avoid duplicate if this exact combo was already generated by C1 or C2 logic (complex to check perfectly, rely on scoring)
-        finalSuggestions.push({
-          id: `comb_userPrefs`,
-          description: `Combine User Preferences: Prepay ₹${userMaxPrepayment.toFixed(
-            2
-          )} in ${
-            simC3.schedule[prepMonthC3]?.displayMonthYear ||
-            `month ${(prepMonthC3 + 1).toString()}`
-          } AND increase EMI to ₹${newEmiC3.toFixed(2)}.`,
-          interestSaved: parseFloat(interestSavedC3.toFixed(2)),
-          tenureReducedMonths: tenureReducedC3,
-          newTotalInterest: parseFloat(simC3.totalInterest.toFixed(2)),
-          newTenureMonths: simC3.actualDuration,
-          revisedSchedule: simC3.schedule,
-        });
+      const customPrepMonth =
+        userPrefMonthForOnce < originalTenure - 1 && userPrefMonthForOnce >= 0
+          ? userPrefMonthForOnce
+          : Math.min(1, originalTenure - 2 >= 0 ? originalTenure - 2 : 0);
+      const customNewEmi = calculatedEmi + userMaxEmiInc;
+      if (customNewEmi > calculatedEmi) {
+        const simC2 = calculateNewSchedule(
+          p,
+          rMonthly,
+          originalTenure,
+          calculatedEmi,
+          [{ month: customPrepMonth, amount: userMaxPrep }],
+          [{ startMonth: 0, newEmi: customNewEmi }],
+          sYear,
+          sMonth
+        );
+        const intSavedC2 = originalTotalInterest - simC2.totalInterest;
+        const tenRedC2 = originalTenure - simC2.actualDuration;
+        if (intSavedC2 > 0.01 || tenRedC2 > 0) {
+          const normIntSaved =
+            originalTotalInterest > 0
+              ? intSavedC2 / originalTotalInterest
+              : intSavedC2 > 0
+              ? 1
+              : 0;
+          const normTenReduced =
+            originalTenure > 0
+              ? tenRedC2 / originalTenure
+              : tenRedC2 > 0
+              ? 1
+              : 0;
+          const score =
+            (weightInt * normIntSaved + weightTen * normTenReduced) * 100;
+          combinedSuggestions.push({
+            id: "comb_user_max_pref",
+            description: `Combine User Max: Prepay ₹${userMaxPrep.toFixed(
+              2
+            )} in ${
+              monthNames[customPrepMonth]
+            } AND increase EMI to ₹${customNewEmi.toFixed(2)}.`,
+            interestSaved: parseFloat(intSavedC2.toFixed(2)),
+            tenureReducedMonths: tenRedC2,
+            newTotalInterest: parseFloat(simC2.totalInterest.toFixed(2)),
+            newTenureMonths: simC2.actualDuration,
+            score: parseFloat(score.toFixed(2)),
+            revisedSchedule: simC2.schedule,
+          });
+        }
       }
     }
 
-    // Re-score and sort all suggestions (individual + combined)
-    const finalScoredSuggestions = finalSuggestions
-      .map((s) => {
-        // if score already exists (from individual suggestions), keep it, else calculate
-        if (s.score !== undefined) return s;
-        const normalizedInterestSaved =
-          originalTotalInterest > 0
-            ? s.interestSaved / originalTotalInterest
-            : s.interestSaved > 0
-            ? 1
-            : 0;
-        const normalizedTenureReduced =
-          originalTenure > 0
-            ? s.tenureReducedMonths / originalTenure
-            : s.tenureReducedMonths > 0
-            ? 1
-            : 0;
-        const score =
-          weightInterest * normalizedInterestSaved +
-          weightTenure * normalizedTenureReduced;
-        return { ...s, score };
-      })
-      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); // Added fallback for potentially undefined scores during sort
+    const allSuggestions = [
+      ...scoredIndividualSuggestions,
+      ...combinedSuggestions,
+    ].sort((a, b) => b.score - a.score);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    if (finalScoredSuggestions.length > 0) {
-      setSuggestions(finalScoredSuggestions.slice(0, 5)); // Show top 5
-    } else if (p > 0) {
+    // Filter out suggestions that are essentially "worse" than higher-scored ones offering similar strategy
+    const finalFilteredSuggestions: Suggestion[] = [];
+    const addedStrategies = new Set<string>(); // e.g. "prep_one", "emi_inc", "comb"
+
+    for (const s of allSuggestions) {
+      let strategyType = s.id.split("_")[0]; // "prep", "emi", "comb"
+      if (s.id.startsWith("prep_one")) strategyType = "prep_one";
+      if (s.id.startsWith("prep_rec")) strategyType = "prep_rec";
+
+      if (
+        !addedStrategies.has(strategyType) ||
+        s.score >
+          (finalFilteredSuggestions.find((fs) => fs.id.startsWith(strategyType))
+            ?.score ?? -1)
+      ) {
+        if (addedStrategies.has(strategyType)) {
+          // if replacing, remove old one
+          const indexToRemove = finalFilteredSuggestions.findIndex((fs) =>
+            fs.id.startsWith(strategyType)
+          );
+          if (indexToRemove > -1)
+            finalFilteredSuggestions.splice(indexToRemove, 1);
+        }
+        finalFilteredSuggestions.push(s);
+        addedStrategies.add(strategyType);
+      }
+    }
+    // Re-sort after potential replacements and ensure top 5 overall unique strategies
+    finalFilteredSuggestions.sort((a, b) => b.score - a.score);
+
+    await new Promise((resolve) => setTimeout(resolve, 300)); // Simulate processing time
+
+    if (finalFilteredSuggestions.length > 0) {
+      setSuggestions(finalFilteredSuggestions.slice(0, 5));
+    } else {
       setSuggestions([
         {
           id: "no_beneficial_suggestions",
           description:
-            "No beneficial prepayment or EMI increase suggestions found for the current parameters and preferences that result in savings or tenure reduction.",
+            "No beneficial prepayment or EMI increase suggestions found that significantly improve upon the original schedule with current preferences.",
           interestSaved: 0,
           tenureReducedMonths: 0,
+          score: 0,
           revisedSchedule: [...amortizationSchedule],
         },
       ]);
     }
     setIsCalculatingSuggestions(false);
-  };
+  }, [
+    principal,
+    duration,
+    annualRate,
+    calculatedEmi,
+    amortizationSchedule,
+    maxPrepaymentAmount,
+    prepaymentFrequency,
+    preferredPrepaymentMonth,
+    maxEmiIncrease,
+    scoreWeightInterest,
+    initialCalculationDone,
+    startYear,
+    startMonth,
+    calculateNewSchedule,
+  ]);
 
   const openDetailedScheduleModal = (schedule: AmortizationEntry[]) => {
     setDetailedScheduleToShow(schedule);
@@ -720,648 +800,595 @@ const EMICalculator: React.FC = () => {
     setDetailedScheduleToShow(null);
   };
 
-  return (
-    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h2>EMI Amortization Calculator</h2>
-      <div
-        style={{
-          marginBottom: "20px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "10px",
-        }}
-      >
-        <div>
-          <label
-            htmlFor="principal"
-            style={{ display: "block", marginBottom: "5px" }}
-          >
-            Principal Amount (₹):
-          </label>
-          <input
-            type="number"
-            id="principal"
-            value={principal}
-            onChange={(e) => {
-              setPrincipal(e.target.value);
-            }}
-            placeholder="e.g., 100000"
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="duration"
-            style={{ display: "block", marginBottom: "5px" }}
-          >
-            Loan Duration (in Months):
-          </label>
-          <input
-            type="number"
-            id="duration"
-            value={duration}
-            onChange={(e) => {
-              setDuration(e.target.value);
-            }}
-            placeholder="e.g., 120"
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="annualRate"
-            style={{ display: "block", marginBottom: "5px" }}
-          >
-            Annual Interest Rate (%):
-          </label>
-          <input
-            type="number"
-            id="annualRate"
-            value={annualRate}
-            onChange={(e) => {
-              setAnnualRate(e.target.value);
-            }}
-            placeholder="e.g., 8.5"
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="manualEmi"
-            style={{ display: "block", marginBottom: "5px" }}
-          >
-            Current EMI Amount (₹) (Optional):
-          </label>
-          <input
-            type="number"
-            id="manualEmi"
-            value={manualEmi}
-            onChange={(e) => {
-              setManualEmi(e.target.value);
-            }}
-            placeholder="If known, otherwise leave blank"
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="startMonth"
-            style={{ display: "block", marginBottom: "5px" }}
-          >
-            Start Month:
-          </label>
-          <select
-            id="startMonth"
-            value={startMonth}
-            onChange={(e) => {
-              setStartMonth(parseInt(e.target.value, 10));
-            }}
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          >
-            {monthNames.map((name, index) => (
-              <option key={index} value={index}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="startYear"
-            style={{ display: "block", marginBottom: "5px" }}
-          >
-            Start Year:
-          </label>
-          <input
-            type="number"
-            id="startYear"
-            value={startYear}
-            onChange={(e) => {
-              setStartYear(e.target.value);
-            }}
-            placeholder={`e.g., ${String(currentYear)}`}
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          />
-        </div>
-      </div>
+  // Effect to clear suggestions if primary loan parameters change
+  useEffect(() => {
+    setSuggestions([]);
+    setInitialCalculationDone(false); // Reset this flag too
+    setCalculatedEmi(null); // Also clear calculated EMI display
+    // Optionally clear amortization schedule too, or let user re-calculate
+    // setAmortizationSchedule([]);
+  }, [principal, duration, annualRate, manualEmi, startMonth, startYear]);
 
-      {/* Suggestion Preferences Section */}
-      <div
-        style={{
-          marginTop: "20px",
-          marginBottom: "20px",
-          padding: "15px",
-          border: "1px solid #ddd",
-          borderRadius: "8px",
-        }}
-      >
-        <h3 style={{ marginBottom: "10px" }}>
-          Suggestion Preferences (Optional)
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "15px",
-          }}
-        >
-          <div>
-            <label
-              htmlFor="maxPrepaymentAmount"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Max One-Time Prepayment (₹):
-            </label>
-            <input
-              type="number"
-              id="maxPrepaymentAmount"
-              value={maxPrepaymentAmount}
-              onChange={(e) => {
-                setMaxPrepaymentAmount(e.target.value);
-              }}
-              placeholder="e.g., 50000"
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            />
+  return (
+    <div className="p-4 md:p-6 lg:p-8 font-sans bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 min-h-screen">
+      <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600 dark:text-indigo-400">
+        EMI & Loan Optimization Calculator
+      </h1>
+
+      {/* Inputs Container */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+        {/* Loan Parameters Section */}
+        <div className="lg:col-span-7 p-5 border border-slate-300 dark:border-slate-700 rounded-xl shadow-lg bg-slate-50 dark:bg-slate-800">
+          <h2 className="text-2xl font-semibold mb-5 text-indigo-700 dark:text-indigo-300">
+            Loan Parameters
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+            <div>
+              <label
+                htmlFor="principal"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Principal Amount (₹):
+              </label>
+              <input
+                type="number"
+                id="principal"
+                value={principal}
+                onChange={(e) => {
+                  setPrincipal(e.target.value);
+                }}
+                placeholder="e.g., 100000"
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="duration"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Loan Duration (Months):
+              </label>
+              <input
+                type="number"
+                id="duration"
+                value={duration}
+                onChange={(e) => {
+                  setDuration(e.target.value);
+                }}
+                placeholder="e.g., 120"
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="annualRate"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Annual Interest Rate (%):
+              </label>
+              <input
+                type="number"
+                id="annualRate"
+                value={annualRate}
+                onChange={(e) => {
+                  setAnnualRate(e.target.value);
+                }}
+                placeholder="e.g., 8.5"
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="manualEmi"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Current EMI (₹) (Optional):
+              </label>
+              <input
+                type="number"
+                id="manualEmi"
+                value={manualEmi}
+                onChange={(e) => {
+                  setManualEmi(e.target.value);
+                }}
+                placeholder="If loan exists, else blank"
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="startMonth"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Loan Start Month:
+              </label>
+              <select
+                id="startMonth"
+                value={startMonth}
+                onChange={(e) => {
+                  setStartMonth(parseInt(e.target.value, 10));
+                }}
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white transition-colors"
+              >
+                {monthNames.map((name, index) => (
+                  <option
+                    key={index}
+                    value={index}
+                    className="dark:bg-slate-700 dark:text-white"
+                  >
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="startYear"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Loan Start Year:
+              </label>
+              <input
+                type="number"
+                id="startYear"
+                value={startYear}
+                onChange={(e) => {
+                  setStartYear(e.target.value);
+                }}
+                placeholder={`e.g., ${currentYear.toString()}`}
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
           </div>
-          <div>
-            <label
-              htmlFor="prepaymentFrequency"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Prepayment Frequency:
-            </label>
-            <select
-              id="prepaymentFrequency"
-              value={prepaymentFrequency}
-              onChange={(e) => {
-                setPrepaymentFrequency(e.target.value);
-              }}
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            >
-              <option value="once">Once</option>
-              <option value="annually">Annually</option>
-              <option value="half-yearly">Half-Yearly</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="preferredPrepaymentMonth"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Preferred Prepayment Month:
-            </label>
-            <select
-              id="preferredPrepaymentMonth"
-              value={preferredPrepaymentMonth}
-              onChange={(e) => {
-                setPreferredPrepaymentMonth(parseInt(e.target.value, 10));
-              }}
-              disabled={prepaymentFrequency === "once"} // Disable if frequency is 'once'
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            >
-              {monthNames.map((name, index) => (
-                <option key={index} value={index}>
-                  {name}
+        </div>
+
+        {/* Suggestion Preferences Section */}
+        <div className="lg:col-span-5 p-5 border border-slate-300 dark:border-slate-700 rounded-xl shadow-lg bg-slate-50 dark:bg-slate-800">
+          <h2 className="text-2xl font-semibold mb-5 text-indigo-700 dark:text-indigo-300">
+            Optimization Preferences
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+            <div>
+              <label
+                htmlFor="maxPrepaymentAmount"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Max One-Time Prepayment (₹):
+              </label>
+              <input
+                type="number"
+                id="maxPrepaymentAmount"
+                value={maxPrepaymentAmount}
+                onChange={(e) => {
+                  setMaxPrepaymentAmount(e.target.value);
+                }}
+                placeholder="e.g., 50000"
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="prepaymentFrequency"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Recurring Prepayment:
+              </label>
+              <select
+                id="prepaymentFrequency"
+                value={prepaymentFrequency}
+                onChange={(e) => {
+                  setPrepaymentFrequency(
+                    e.target.value as "once" | "annually" | "half-yearly"
+                  );
+                }}
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white transition-colors"
+              >
+                <option
+                  value="once"
+                  className="dark:bg-slate-700 dark:text-white"
+                >
+                  None (Consider One-Time Only)
                 </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="maxEmiIncrease"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Max EMI Increase Per Month (₹):
-            </label>
-            <input
-              type="number"
-              id="maxEmiIncrease"
-              value={maxEmiIncrease}
-              onChange={(e) => {
-                setMaxEmiIncrease(e.target.value);
-              }}
-              placeholder="e.g., 5000"
-              style={{
-                width: "100%",
-                padding: "8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="scoreWeightInterest"
-              style={{ display: "block", marginBottom: "5px" }}
-            >
-              Emphasis on Interest Saved (0-100): {scoreWeightInterest}%
-            </label>
-            <input
-              type="range"
-              id="scoreWeightInterest"
-              min="0"
-              max="100"
-              step="5"
-              value={scoreWeightInterest}
-              onChange={(e) => {
-                setScoreWeightInterest(parseInt(e.target.value, 10));
-              }}
-              style={{ width: "100%" }}
-            />
-            <div style={{ fontSize: "0.8em", color: "#555" }}>
-              (Tenure Reduction Emphasis: {100 - scoreWeightInterest}%)
+                <option
+                  value="annually"
+                  className="dark:bg-slate-700 dark:text-white"
+                >
+                  Annually
+                </option>
+                <option
+                  value="half-yearly"
+                  className="dark:bg-slate-700 dark:text-white"
+                >
+                  Half-Yearly
+                </option>
+              </select>
+            </div>
+            <div className={prepaymentFrequency === "once" ? "opacity-50" : ""}>
+              <label
+                htmlFor="preferredPrepaymentMonth"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Recurring Prepayment Month:
+              </label>
+              <select
+                id="preferredPrepaymentMonth"
+                value={preferredPrepaymentMonth}
+                onChange={(e) => {
+                  setPreferredPrepaymentMonth(parseInt(e.target.value, 10));
+                }}
+                disabled={prepaymentFrequency === "once"}
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {monthNames.map((name, index) => (
+                  <option
+                    key={index}
+                    value={index}
+                    className="dark:bg-slate-700 dark:text-white"
+                  >
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="maxEmiIncrease"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Max EMI Increase Amount (₹):
+              </label>
+              <input
+                type="number"
+                id="maxEmiIncrease"
+                value={maxEmiIncrease}
+                onChange={(e) => {
+                  setMaxEmiIncrease(e.target.value);
+                }}
+                placeholder="e.g., 1000"
+                className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:placeholder-slate-400 dark:text-white transition-colors"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="scoreWeightInterest"
+                className="block mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Optimization Focus (Interest Saved %):{" "}
+                <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                  {scoreWeightInterest}%
+                </span>
+              </label>
+              <input
+                type="range"
+                id="scoreWeightInterest"
+                min="0"
+                max="100"
+                step="5"
+                value={scoreWeightInterest}
+                onChange={(e) => {
+                  setScoreWeightInterest(parseInt(e.target.value, 10));
+                }}
+                className="w-full h-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-400"
+              />
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span>More Tenure Reduction</span>
+                <span>More Interest Saved</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <button
-        onClick={handleCalculate}
-        style={{
-          padding: "10px 20px",
-          backgroundColor: "#007bff",
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-          marginBottom: "20px",
-        }}
-      >
-        Calculate Amortization
-      </button>
-
-      {calculatedEmi !== null && (
-        <div style={{ marginBottom: "20px", fontSize: "1.1em" }}>
-          <strong>Calculated EMI: ₹{calculatedEmi}</strong>
-          {manualEmi &&
-            parseFloat(manualEmi) > 0 &&
-            Math.abs(calculatedEmi - parseFloat(manualEmi)) > 0.01 && (
-              <span style={{ marginLeft: "10px", color: "orange" }}>
-                (Note: Provided EMI differs from standard calculated EMI for the
-                given inputs.)
-              </span>
-            )}
-        </div>
-      )}
-
-      {amortizationSchedule.length > 0 && (
-        <div>
-          <h3>Amortization Schedule</h3>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: "10px",
-            }}
-          >
-            <thead>
-              <tr style={{ backgroundColor: "#f0f0f0" }}>
-                <th
-                  style={{
-                    border: "1px solid #ddd",
-                    padding: "8px",
-                    textAlign: "left",
-                  }}
-                >
-                  Payment Month / Year
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #ddd",
-                    padding: "8px",
-                    textAlign: "left",
-                  }}
-                >
-                  Opening Balance (₹)
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #ddd",
-                    padding: "8px",
-                    textAlign: "left",
-                  }}
-                >
-                  EMI (₹)
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #ddd",
-                    padding: "8px",
-                    textAlign: "left",
-                  }}
-                >
-                  Principal Paid (₹)
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #ddd",
-                    padding: "8px",
-                    textAlign: "left",
-                  }}
-                >
-                  Interest Paid (₹)
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #ddd",
-                    padding: "8px",
-                    textAlign: "left",
-                  }}
-                >
-                  Closing Balance (₹)
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {amortizationSchedule.map((entry) => (
-                <tr key={entry.month}>
-                  <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                    {entry.displayMonthYear}
-                  </td>
-                  <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                    {entry.openingBalance.toFixed(2)}
-                  </td>
-                  <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                    {entry.emi.toFixed(2)}
-                  </td>
-                  <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                    {entry.principalPaid.toFixed(2)}
-                  </td>
-                  <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                    {entry.interestPaid.toFixed(2)}
-                  </td>
-                  <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                    {entry.closingBalance.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {amortizationSchedule.length > 0 && (
-        <div style={{ marginTop: "20px" }}>
-          <button
-            onClick={() => {
-              void handleGenerateSuggestions();
-            }}
-            disabled={isCalculatingSuggestions}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#28a745", // Green color for suggestion button
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Suggest Prepayment / Increased EMI
-          </button>
-        </div>
-      )}
-
-      {isCalculatingSuggestions && (
-        <div style={{ marginTop: "20px", fontStyle: "italic" }}>
-          Calculating suggestions...
-        </div>
-      )}
-
-      {suggestions.length > 0 && !isCalculatingSuggestions && (
-        <div
-          style={{
-            marginTop: "30px",
-            padding: "20px",
-            border: "1px solid #e0e0e0",
-            borderRadius: "8px",
-          }}
+      {/* Action Buttons & Calculated EMI Display */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+        <button
+          onClick={handleCalculateAmortization}
+          className="w-full sm:w-auto px-6 py-3 text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md focus:ring-4 focus:outline-none focus:ring-indigo-300 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:focus:ring-indigo-700 transition-all duration-150 ease-in-out"
         >
-          <h3 style={{ marginBottom: "15px" }}>
-            Prepayment / Increased EMI Suggestions:
+          Calculate Amortization
+        </button>
+        {calculatedEmi !== null && (
+          <div className="p-3 rounded-lg bg-indigo-50 dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 text-center sm:text-left shadow">
+            <strong>Calculated EMI: ₹{calculatedEmi.toFixed(2)}</strong>
+            {manualEmi &&
+              parseFloat(manualEmi) > 0 &&
+              Math.abs(calculatedEmi - parseFloat(manualEmi)) > 0.01 && (
+                <span className="block sm:inline sm:ml-2 text-xs text-amber-600 dark:text-amber-400">
+                  (Manual EMI differs)
+                </span>
+              )}
+          </div>
+        )}
+      </div>
+
+      {errorMessage && (
+        <div className="my-4 p-3.5 text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-400 dark:border-red-500 rounded-lg shadow">
+          <p>
+            <strong>Error:</strong> {errorMessage}
+          </p>
+        </div>
+      )}
+
+      {/* Amortization Schedule Table */}
+      {amortizationSchedule.length > 0 && !errorMessage && (
+        <div className="mt-8 p-2 bg-white dark:bg-slate-800 shadow-xl rounded-xl overflow-hidden">
+          <h3 className="text-xl font-semibold mb-4 px-4 pt-4 text-indigo-700 dark:text-indigo-300">
+            Amortization Schedule
           </h3>
-          {suggestions[0].id === "no_beneficial_suggestions" ||
-          suggestions[0].id === "no_suggestions_needed" ? (
-            <p>{suggestions[0].description}</p>
-          ) : (
-            suggestions.map((suggestion) => (
-              <div
-                key={suggestion.id}
-                style={{
-                  marginBottom: "15px",
-                  paddingBottom: "10px",
-                  borderBottom: "1px dashed #eee",
-                }}
-              >
-                <p>
-                  <strong>{suggestion.description}</strong>
-                </p>
-                <p style={{ color: "green" }}>
-                  Potential Interest Saved: ₹
-                  {suggestion.interestSaved.toFixed(2)}
-                </p>
-                <p style={{ color: "blue" }}>
-                  Loan Tenure Reduced By: {suggestion.tenureReducedMonths}{" "}
-                  months
-                </p>
-                {suggestion.newTotalInterest !== undefined && (
-                  <p>
-                    New Total Interest: ₹
-                    {suggestion.newTotalInterest.toFixed(2)}
-                  </p>
-                )}
-                {suggestion.newTenureMonths !== undefined && (
-                  <p>New Loan Tenure: {suggestion.newTenureMonths} months</p>
-                )}
-                <button
-                  onClick={() => {
-                    openDetailedScheduleModal(suggestion.revisedSchedule);
-                  }}
-                  style={{
-                    fontSize: "0.9em",
-                    padding: "3px 8px",
-                    marginTop: "5px",
-                    cursor: "pointer",
-                  }}
-                >
-                  View Detailed Schedule
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {showDetailedScheduleModal && detailedScheduleToShow && (
-        <div
-          style={{
-            position: "fixed",
-            top: "0",
-            left: "0",
-            width: "100%",
-            height: "100%",
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "white",
-              padding: "20px",
-              borderRadius: "8px",
-              width: "80%",
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
-          >
-            <h4 style={{ marginTop: 0, marginBottom: "15px" }}>
-              Detailed Amortization Schedule (Suggestion)
-            </h4>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                marginTop: "10px",
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: "#f0f0f0" }}>
-                  <th
-                    style={{
-                      border: "1px solid #ddd",
-                      padding: "8px",
-                      textAlign: "left",
-                    }}
-                  >
-                    Payment Month / Year
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #ddd",
-                      padding: "8px",
-                      textAlign: "left",
-                    }}
-                  >
-                    Opening Balance (₹)
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #ddd",
-                      padding: "8px",
-                      textAlign: "left",
-                    }}
-                  >
-                    EMI (₹)
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #ddd",
-                      padding: "8px",
-                      textAlign: "left",
-                    }}
-                  >
-                    Principal Paid (₹)
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #ddd",
-                      padding: "8px",
-                      textAlign: "left",
-                    }}
-                  >
-                    Interest Paid (₹)
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #ddd",
-                      padding: "8px",
-                      textAlign: "left",
-                    }}
-                  >
-                    Closing Balance (₹)
-                  </th>
+          <div className="overflow-x-auto max-h-[500px] styled-scrollbar">
+            {" "}
+            {/* Added styled-scrollbar for potential custom scrollbar styling via global CSS */}
+            <table className="min-w-full text-sm text-left text-slate-700 dark:text-slate-300">
+              <thead className="text-xs text-slate-700 uppercase bg-slate-100 dark:bg-slate-700 dark:text-slate-300 sticky top-0 z-10">
+                <tr>
+                  {[
+                    "Month No.",
+                    `Month-Year`,
+                    "Opening Balance (₹)",
+                    "EMI (₹)",
+                    "Principal (₹)",
+                    "Interest (₹)",
+                    "Closing Balance (₹)",
+                  ].map((header) => (
+                    <th
+                      key={header}
+                      scope="col"
+                      className="px-4 py-3 font-medium whitespace-nowrap"
+                    >
+                      {header === "Month-Year"
+                        ? `${monthNames[startMonth]} ${startYear.toString()}`
+                        : header}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody>
-                {detailedScheduleToShow.map((entry) => (
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {amortizationSchedule.map((entry) => (
                   <tr
-                    key={`${entry.displayMonthYear}-${entry.month.toString()}`}
+                    key={entry.month}
+                    className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                   >
-                    <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {entry.month}
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
                       {entry.displayMonthYear}
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right">
                       {entry.openingBalance.toFixed(2)}
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right">
                       {entry.emi.toFixed(2)}
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right text-green-600 dark:text-green-400">
                       {entry.principalPaid.toFixed(2)}
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right text-red-600 dark:text-red-400">
                       {entry.interestPaid.toFixed(2)}
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right font-medium">
                       {entry.closingBalance.toFixed(2)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <button
-              onClick={closeDetailedScheduleModal}
-              style={{ marginTop: "20px", padding: "8px 15px" }}
+          </div>
+          {amortizationSchedule.length > 0 && (
+            <div className="mt-6 mb-2 px-4 pb-2 text-center">
+              <button
+                onClick={() => {
+                  void handleGenerateSuggestions();
+                }}
+                disabled={isCalculatingSuggestions}
+                className="px-6 py-3 text-base font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-md focus:ring-4 focus:outline-none focus:ring-green-300 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-700 transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isCalculatingSuggestions
+                  ? "Optimizing..."
+                  : "Suggest Optimizations"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Suggestions Display */}
+      {isCalculatingSuggestions && (
+        <div className="mt-6 p-4 text-center text-slate-600 dark:text-slate-300">
+          <div role="status" className="inline-flex items-center">
+            <svg
+              aria-hidden="true"
+              className="w-6 h-6 mr-2 text-slate-200 animate-spin dark:text-slate-600 fill-indigo-600"
+              viewBox="0 0 100 101"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              Close
-            </button>
+              <path
+                d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                fill="currentColor"
+              />
+              <path
+                d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                fill="currentFill"
+              />
+            </svg>
+            <span className="ml-2 text-lg">
+              Calculating optimal suggestions... Please wait.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {suggestions.length > 0 && !isCalculatingSuggestions && (
+        <div className="mt-8 p-5 bg-slate-50 dark:bg-slate-800 shadow-xl rounded-xl">
+          <h3 className="text-xl font-semibold mb-5 text-indigo-700 dark:text-indigo-300">
+            Top Loan Optimization Suggestions
+          </h3>
+          {suggestions[0].id === "no_beneficial_suggestions" ||
+          suggestions[0].id === "no_interest_loan" ||
+          suggestions[0].id === "no_loan_to_optimize" ? (
+            <p className="p-3 text-slate-600 dark:text-slate-300 bg-indigo-50 dark:bg-slate-700 rounded-md">
+              {suggestions[0].description}
+            </p>
+          ) : (
+            <div className="space-y-5">
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={suggestion.id}
+                  className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg shadow-md hover:shadow-lg transition-shadow bg-white dark:bg-slate-800/50"
+                >
+                  <p className="font-semibold text-md text-indigo-700 dark:text-indigo-400 mb-2">
+                    <span className="bg-indigo-100 dark:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300 rounded-full px-2.5 py-0.5 text-xs font-bold mr-2">
+                      #{index + 1}
+                    </span>
+                    {suggestion.description} (Score:{" "}
+                    {suggestion.score.toFixed(1)})
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <p className="text-green-600 dark:text-green-400">
+                      Interest Saved:{" "}
+                      <span className="font-medium">
+                        ₹{suggestion.interestSaved.toFixed(2)}
+                      </span>
+                    </p>
+                    <p className="text-blue-600 dark:text-blue-400">
+                      Tenure Reduced:{" "}
+                      <span className="font-medium">
+                        {suggestion.tenureReducedMonths} months
+                      </span>
+                    </p>
+                    {suggestion.newTotalInterest !== undefined && (
+                      <p className="text-slate-600 dark:text-slate-300">
+                        New Total Interest: ₹
+                        {suggestion.newTotalInterest.toFixed(2)}
+                      </p>
+                    )}
+                    {suggestion.newTenureMonths !== undefined && (
+                      <p className="text-slate-600 dark:text-slate-300">
+                        New Tenure: {suggestion.newTenureMonths} months
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      openDetailedScheduleModal(suggestion.revisedSchedule);
+                    }}
+                    className="mt-3 px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/30 hover:bg-indigo-200 dark:hover:bg-indigo-500/50 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors"
+                  >
+                    View Detailed Schedule
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detailed Schedule Modal */}
+      {showDetailedScheduleModal && detailedScheduleToShow && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex justify-center items-center z-50 p-4 transition-opacity duration-300 ease-in-out"
+          onClick={() => {
+            closeDetailedScheduleModal();
+          }}
+        >
+          <div
+            className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-xl font-semibold text-indigo-700 dark:text-indigo-300">
+                Detailed Amortization (Suggestion)
+              </h4>
+              <button
+                onClick={() => {
+                  closeDetailedScheduleModal();
+                }}
+                className="p-1.5 rounded-full text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto styled-scrollbar flex-grow">
+              <table className="min-w-full text-sm text-left text-slate-700 dark:text-slate-300">
+                <thead className="text-xs text-slate-700 uppercase bg-slate-100 dark:bg-slate-700 dark:text-slate-300 sticky top-0 z-10">
+                  <tr>
+                    {[
+                      "Month No.",
+                      "Month-Year",
+                      "Opening Balance (₹)",
+                      "EMI (₹)",
+                      "Principal (₹)",
+                      "Interest (₹)",
+                      "Closing Balance (₹)",
+                    ].map((header) => (
+                      <th
+                        key={header}
+                        scope="col"
+                        className="px-4 py-3 font-medium whitespace-nowrap"
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {detailedScheduleToShow.map((entry, idx) => (
+                    <tr
+                      key={`${entry.month}-${idx}`}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {entry.month}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {entry.displayMonthYear}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-right">
+                        {entry.openingBalance.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-right">
+                        {entry.emi.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-right text-green-600 dark:text-green-400">
+                        {entry.principalPaid.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-right text-red-600 dark:text-red-400">
+                        {entry.interestPaid.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-right font-medium">
+                        {entry.closingBalance.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-5 text-right">
+              <button
+                onClick={() => {
+                  closeDetailedScheduleModal();
+                }}
+                className="px-5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
