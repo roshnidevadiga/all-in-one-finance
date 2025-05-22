@@ -279,13 +279,13 @@ const EMICalculator: React.FC = () => {
     const n = parseInt(duration, 10);
     const rAnnual = parseFloat(annualRate);
     const sYear = parseInt(startYear, 10);
-    const sMonth = startMonth; // 0-indexed
-
-    // Read suggestion preferences
+    const sMonth = startMonth;
     const userMaxPrepayment = parseFloat(maxPrepaymentAmount);
     const userFrequency = prepaymentFrequency;
-    const userPrefPrepaymentMonth = preferredPrepaymentMonth; // 0-indexed
+    const userPrefPrepaymentMonth = preferredPrepaymentMonth;
     const userMaxEmiIncrease = parseFloat(maxEmiIncrease);
+    const weightInterest = scoreWeightInterest / 100;
+    const weightTenure = 1 - weightInterest;
 
     if (
       isNaN(p) ||
@@ -293,24 +293,22 @@ const EMICalculator: React.FC = () => {
       isNaN(n) ||
       n <= 0 ||
       isNaN(rAnnual) ||
-      rAnnual < 0 /* allow 0 rate */ ||
+      rAnnual < 0 ||
       !calculatedEmi ||
       calculatedEmi <= 0
     ) {
       alert(
-        "Please calculate the initial amortization schedule first with valid positive inputs leading to a valid EMI."
+        "Please calculate the initial amortization schedule first with valid positive inputs..."
       );
       setIsCalculatingSuggestions(false);
       return;
     }
-
     const rMonthly = rAnnual / 12 / 100;
     const originalTotalInterest = amortizationSchedule.reduce(
       (acc, entry) => acc + entry.interestPaid,
       0
     );
     const originalTenure = amortizationSchedule.length;
-
     if (originalTenure === 0) {
       alert(
         "Original amortization schedule is empty. Cannot generate suggestions."
@@ -319,7 +317,6 @@ const EMICalculator: React.FC = () => {
       return;
     }
     if (p <= 0 && originalTotalInterest <= 0) {
-      // If loan principal is zero or already no interest
       setSuggestions([
         {
           id: "no_suggestions_needed",
@@ -334,9 +331,9 @@ const EMICalculator: React.FC = () => {
       return;
     }
 
-    const generatedSuggestions: Suggestion[] = [];
+    const allIndividualSuggestions: Suggestion[] = [];
 
-    // **1. Prepayment Scenarios **
+    // **1. Prepayment Scenarios (Collect All) **
     const prepaymentAmountsToTry: number[] = [];
     if (!isNaN(userMaxPrepayment) && userMaxPrepayment > 0) {
       prepaymentAmountsToTry.push(userMaxPrepayment);
@@ -374,12 +371,29 @@ const EMICalculator: React.FC = () => {
         ) {
           oneTimePrepaymentMonthsSet.add(userPrefPrepaymentMonth);
         }
+
         // Ensure at least some default early months if loan is very short and set is empty
         if (oneTimePrepaymentMonthsSet.size === 0 && n > 1) {
-          if (n > 2) oneTimePrepaymentMonthsSet.add(Math.min(2, n - 2)); // e.g. month 3 (0-indexed 2)
-          if (n > 5) oneTimePrepaymentMonthsSet.add(Math.min(5, n - 2)); // e.g. month 6
-          if (oneTimePrepaymentMonthsSet.size === 0)
-            oneTimePrepaymentMonthsSet.add(0); // at least the first possible month (0-indexed)
+          let addedToFallback = false;
+          // Try adding month 5 (0-indexed) if loan is ~6 months or longer, ensuring n-2 is valid
+          if (n > 5 && n - 2 >= 0) {
+            oneTimePrepaymentMonthsSet.add(Math.min(5, n - 2));
+            addedToFallback = true;
+          }
+          // Try adding month 2 (0-indexed) if loan is ~3 months or longer, ensuring n-2 is valid
+          if (n > 2 && n - 2 >= 0) {
+            const monthToAdd = Math.min(2, n - 2);
+            // Ensure we don't add same month twice if n is small, e.g. n=3, (Math.min(5,1) could be same as Math.min(2,1))
+            if (!oneTimePrepaymentMonthsSet.has(monthToAdd)) {
+              oneTimePrepaymentMonthsSet.add(monthToAdd);
+              addedToFallback = true;
+            }
+          }
+          // If still nothing added (e.g., n=2, so n-2=0), add the first possible month (0-indexed 0)
+          if (!addedToFallback && n - 1 >= 0) {
+            // Ensure loan duration allows at least month 0
+            oneTimePrepaymentMonthsSet.add(0);
+          }
         }
 
         for (const prepMonth of Array.from(oneTimePrepaymentMonthsSet).sort(
@@ -397,7 +411,7 @@ const EMICalculator: React.FC = () => {
           const interestSaved = originalTotalInterest - sim.totalInterest;
           const tenureReduced = originalTenure - sim.actualDuration;
           if (interestSaved > 0 || tenureReduced > 0) {
-            generatedSuggestions.push({
+            allIndividualSuggestions.push({
               id: `prep_once_${amount.toString()}_m${(
                 prepMonth + 1
               ).toString()}`,
@@ -450,7 +464,7 @@ const EMICalculator: React.FC = () => {
           const interestSaved = originalTotalInterest - sim.totalInterest;
           const tenureReduced = originalTenure - sim.actualDuration;
           if (interestSaved > 0 || tenureReduced > 0) {
-            generatedSuggestions.push({
+            allIndividualSuggestions.push({
               id: `prep_recur_${userFrequency}_${amount.toString()}`,
               description: `Prepay ₹${amount.toFixed(2)} ${userFrequency} in ${
                 monthNames[userPrefPrepaymentMonth]
@@ -466,7 +480,7 @@ const EMICalculator: React.FC = () => {
       }
     }
 
-    // **2. EMI Increase Scenarios **
+    // **2. EMI Increase Scenarios (Collect All) **
     const emiIncreasesToTry: number[] = [];
     if (!isNaN(userMaxEmiIncrease) && userMaxEmiIncrease > 0) {
       emiIncreasesToTry.push(calculatedEmi + userMaxEmiIncrease);
@@ -491,7 +505,7 @@ const EMICalculator: React.FC = () => {
       const interestSaved = originalTotalInterest - sim.totalInterest;
       const tenureReduced = originalTenure - sim.actualDuration;
       if (interestSaved > 0 || tenureReduced > 0) {
-        generatedSuggestions.push({
+        allIndividualSuggestions.push({
           id: `inc_emi_${String(newEmi.toFixed(0))}`,
           description: `Increase monthly EMI to ₹${newEmi.toFixed(
             2
@@ -505,95 +519,183 @@ const EMICalculator: React.FC = () => {
       }
     }
 
-    // **3. Combined Scenarios (Basic) **
-    const combinedPrepaymentAmount =
-      !isNaN(userMaxPrepayment) && userMaxPrepayment > 0
-        ? userMaxPrepayment
-        : calculatedEmi; // Use user pref or 1 EMI
-    if (combinedPrepaymentAmount > 0) {
-      // Only if there's a prepayment amount
-      const combinedPrepaymentMonth = 2; // 0-indexed (e.g., month 3)
+    // --- Score individual suggestions before picking best for combined ---
+    const scoredIndividualSuggestions = allIndividualSuggestions
+      .map((s) => {
+        const normalizedInterestSaved =
+          originalTotalInterest > 0
+            ? s.interestSaved / originalTotalInterest
+            : s.interestSaved > 0
+            ? 1
+            : 0;
+        const normalizedTenureReduced =
+          originalTenure > 0
+            ? s.tenureReducedMonths / originalTenure
+            : s.tenureReducedMonths > 0
+            ? 1
+            : 0;
+        const score =
+          weightInterest * normalizedInterestSaved +
+          weightTenure * normalizedTenureReduced;
+        return { ...s, score };
+      })
+      .sort((a, b) => b.score - a.score);
 
-      let combinedEmiIncrease =
-        !isNaN(userMaxEmiIncrease) && userMaxEmiIncrease > 0
-          ? calculatedEmi + userMaxEmiIncrease
-          : calculatedEmi * 1.05; // User pref or 5% increase
-      if (combinedEmiIncrease <= calculatedEmi)
-        combinedEmiIncrease = calculatedEmi * 1.05; // Ensure it's an actual increase
+    const finalSuggestions: Suggestion[] = [...scoredIndividualSuggestions]; // Start with sorted individual ones
 
-      if (combinedPrepaymentMonth < n) {
-        const simCombined = calculateNewSchedule(
-          p,
-          rMonthly,
-          n,
-          calculatedEmi,
-          [
-            {
-              month: combinedPrepaymentMonth,
-              amount: combinedPrepaymentAmount,
-            },
-          ],
-          [{ startMonth: 0, newEmi: combinedEmiIncrease }]
-        );
-        const interestSavedCombined =
-          originalTotalInterest - simCombined.totalInterest;
-        const tenureReducedCombined =
-          originalTenure - simCombined.actualDuration;
+    // **3. Generate More Sophisticated Combined Scenarios **
+    // Identify best individual options if they exist and are significant
+    const bestOneTimePrepaymentSuggestion = scoredIndividualSuggestions.find(
+      (s) =>
+        s.id.startsWith("prep_once") && s.interestSaved > calculatedEmi * 0.1 // e.g. saves at least 10% of an EMI
+    );
+    const bestEmiIncreaseSuggestion = scoredIndividualSuggestions.find(
+      (s) => s.id.startsWith("inc_emi") && s.interestSaved > calculatedEmi * 0.1
+    );
 
-        if (interestSavedCombined > 0 || tenureReducedCombined > 0) {
-          generatedSuggestions.push({
-            id: `comb_prep${combinedPrepaymentAmount.toFixed(0).toString()}_m${(
-              combinedPrepaymentMonth + 1
-            ).toString()}_incEMI${combinedEmiIncrease.toFixed(0).toString()}`,
-            description: `Prepay ₹${combinedPrepaymentAmount.toFixed(2)} in ${
-              simCombined.schedule[combinedPrepaymentMonth]?.displayMonthYear ||
-              `month ${(combinedPrepaymentMonth + 1).toString()}`
-            }, AND increase EMI to ₹${combinedEmiIncrease.toFixed(
-              2
-            )} from start.`,
-            interestSaved: parseFloat(interestSavedCombined.toFixed(2)),
-            tenureReducedMonths: tenureReducedCombined,
-            newTotalInterest: parseFloat(simCombined.totalInterest.toFixed(2)),
-            newTenureMonths: simCombined.actualDuration,
-            revisedSchedule: simCombined.schedule,
-          });
-        }
+    // C1: Best One-Time Prepayment + Modest EMI Increase
+    if (bestOneTimePrepaymentSuggestion) {
+      // const prepDetails = bestOneTimePrepaymentSuggestion.revisedSchedule; // Unused, remove
+      // Let's re-parse from ID to be safe, or extract params when creating suggestion
+      const parts = bestOneTimePrepaymentSuggestion.id.split("_");
+      const prepAmount = parseFloat(parts[2]);
+      const prepMonth = parseInt(parts[3].substring(1), 10) - 1; // 0-indexed
+
+      const modestEmiIncreaseVal = calculatedEmi * 1.05; // 5% increase
+      const simC1 = calculateNewSchedule(
+        p,
+        rMonthly,
+        n,
+        calculatedEmi,
+        [{ month: prepMonth, amount: prepAmount }],
+        [{ startMonth: 0, newEmi: modestEmiIncreaseVal }]
+      );
+      const interestSavedC1 = originalTotalInterest - simC1.totalInterest;
+      const tenureReducedC1 = originalTenure - simC1.actualDuration;
+      if (interestSavedC1 > 0 || tenureReducedC1 > 0) {
+        finalSuggestions.push({
+          id: `comb_bestPrep_modEMI`,
+          description: `Combine: (${bestOneTimePrepaymentSuggestion.description.replace(
+            "Make a ",
+            "make a "
+          )}) AND increase EMI by 5% to ₹${modestEmiIncreaseVal.toFixed(2)}.`,
+          interestSaved: parseFloat(interestSavedC1.toFixed(2)),
+          tenureReducedMonths: tenureReducedC1,
+          newTotalInterest: parseFloat(simC1.totalInterest.toFixed(2)),
+          newTenureMonths: simC1.actualDuration,
+          revisedSchedule: simC1.schedule,
+        });
       }
     }
 
-    // --- Scoring and Sorting ---
-    let scoredSuggestions: Suggestion[] = [];
-    if (generatedSuggestions.length > 0) {
-      const weightInterest = scoreWeightInterest / 100;
-      const weightTenure = 1 - weightInterest;
-      scoredSuggestions = generatedSuggestions
-        .map((s) => {
-          const normalizedInterestSaved =
-            originalTotalInterest > 0
-              ? s.interestSaved / originalTotalInterest
-              : s.interestSaved > 0
-              ? 1
-              : 0; // Handle 0 original interest
-          const normalizedTenureReduced =
-            originalTenure > 0
-              ? s.tenureReducedMonths / originalTenure
-              : s.tenureReducedMonths > 0
-              ? 1
-              : 0;
-          const score =
-            weightInterest * normalizedInterestSaved +
-            weightTenure * normalizedTenureReduced;
-          return { ...s, score };
-        })
-        .sort((a, b) => b.score - a.score);
+    // C2: Modest One-Time Prepayment + Best EMI Increase
+    if (bestEmiIncreaseSuggestion) {
+      const modestPrepaymentAmount = calculatedEmi; // 1 EMI
+      const modestPrepaymentMonth = Math.min(2, n - 2 >= 0 ? n - 2 : 0); // Month 3 or earlier
+      const newEmiVal = parseFloat(bestEmiIncreaseSuggestion.id.split("_")[2]); // Assumes ID structure inc_emi_NEWEMI VAL
+
+      const simC2 = calculateNewSchedule(
+        p,
+        rMonthly,
+        n,
+        calculatedEmi,
+        [{ month: modestPrepaymentMonth, amount: modestPrepaymentAmount }],
+        [{ startMonth: 0, newEmi: newEmiVal }]
+      );
+      const interestSavedC2 = originalTotalInterest - simC2.totalInterest;
+      const tenureReducedC2 = originalTenure - simC2.actualDuration;
+      if (interestSavedC2 > 0 || tenureReducedC2 > 0) {
+        finalSuggestions.push({
+          id: `comb_modPrep_bestEMI`,
+          description: `Combine: Prepay ₹${modestPrepaymentAmount.toFixed(
+            2
+          )} in ${
+            simC2.schedule[modestPrepaymentMonth]?.displayMonthYear ||
+            `month ${(modestPrepaymentMonth + 1).toString()}`
+          } AND apply (${bestEmiIncreaseSuggestion.description.replace(
+            "Increase ",
+            "increase "
+          )})`,
+          interestSaved: parseFloat(interestSavedC2.toFixed(2)),
+          tenureReducedMonths: tenureReducedC2,
+          newTotalInterest: parseFloat(simC2.totalInterest.toFixed(2)),
+          newTenureMonths: simC2.actualDuration,
+          revisedSchedule: simC2.schedule,
+        });
+      }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // C3: User Prefs Combined (if both specified and potentially different from above combinations)
+    if (
+      !isNaN(userMaxPrepayment) &&
+      userMaxPrepayment > 0 &&
+      !isNaN(userMaxEmiIncrease) &&
+      userMaxEmiIncrease > 0
+    ) {
+      const prepMonthC3 =
+        userFrequency === "once" &&
+        userPrefPrepaymentMonth < n - 1 &&
+        userPrefPrepaymentMonth >= 0
+          ? userPrefPrepaymentMonth
+          : Math.min(2, n - 2 >= 0 ? n - 2 : 0);
+      const newEmiC3 = calculatedEmi + userMaxEmiIncrease;
+      const simC3 = calculateNewSchedule(
+        p,
+        rMonthly,
+        n,
+        calculatedEmi,
+        [{ month: prepMonthC3, amount: userMaxPrepayment }],
+        [{ startMonth: 0, newEmi: newEmiC3 }]
+      );
+      const interestSavedC3 = originalTotalInterest - simC3.totalInterest;
+      const tenureReducedC3 = originalTenure - simC3.actualDuration;
+      if (interestSavedC3 > 0 || tenureReducedC3 > 0) {
+        // Avoid duplicate if this exact combo was already generated by C1 or C2 logic (complex to check perfectly, rely on scoring)
+        finalSuggestions.push({
+          id: `comb_userPrefs`,
+          description: `Combine User Preferences: Prepay ₹${userMaxPrepayment.toFixed(
+            2
+          )} in ${
+            simC3.schedule[prepMonthC3]?.displayMonthYear ||
+            `month ${(prepMonthC3 + 1).toString()}`
+          } AND increase EMI to ₹${newEmiC3.toFixed(2)}.`,
+          interestSaved: parseFloat(interestSavedC3.toFixed(2)),
+          tenureReducedMonths: tenureReducedC3,
+          newTotalInterest: parseFloat(simC3.totalInterest.toFixed(2)),
+          newTenureMonths: simC3.actualDuration,
+          revisedSchedule: simC3.schedule,
+        });
+      }
+    }
 
-    if (scoredSuggestions.length > 0) {
-      setSuggestions(scoredSuggestions.slice(0, 5));
+    // Re-score and sort all suggestions (individual + combined)
+    const finalScoredSuggestions = finalSuggestions
+      .map((s) => {
+        // if score already exists (from individual suggestions), keep it, else calculate
+        if (s.score !== undefined) return s;
+        const normalizedInterestSaved =
+          originalTotalInterest > 0
+            ? s.interestSaved / originalTotalInterest
+            : s.interestSaved > 0
+            ? 1
+            : 0;
+        const normalizedTenureReduced =
+          originalTenure > 0
+            ? s.tenureReducedMonths / originalTenure
+            : s.tenureReducedMonths > 0
+            ? 1
+            : 0;
+        const score =
+          weightInterest * normalizedInterestSaved +
+          weightTenure * normalizedTenureReduced;
+        return { ...s, score };
+      })
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); // Added fallback for potentially undefined scores during sort
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    if (finalScoredSuggestions.length > 0) {
+      setSuggestions(finalScoredSuggestions.slice(0, 5)); // Show top 5
     } else if (p > 0) {
-      // Only show if there was a loan to begin with
       setSuggestions([
         {
           id: "no_beneficial_suggestions",
