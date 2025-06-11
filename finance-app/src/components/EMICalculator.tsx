@@ -230,7 +230,9 @@ const EMICalculator: React.FC = () => {
         actualLoanTermMonths = i + 1;
         if (i < n - 1 && manualEmi && parseFloat(manualEmi) > 0) {
           console.warn(
-            `Loan will be paid off by month ${actualLoanTermMonths} with the provided EMI.`
+            "Loan will be paid off by month " +
+              actualLoanTermMonths +
+              " with the provided EMI."
           );
         }
         break;
@@ -810,18 +812,21 @@ const EMICalculator: React.FC = () => {
   }, [principal, duration, annualRate, manualEmi, startMonth, startYear]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 font-sans bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600 dark:text-indigo-400">
-        EMI & Loan Optimization Calculator
-      </h1>
+    <div className="font-sans text-foreground">
+      <h2 className="text-2xl font-bold mb-6 text-center text-primary">
+        Plan & Optimize Your Loan
+      </h2>
 
       {/* Inputs Container */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
         {/* Loan Parameters Section */}
-        <div className="lg:col-span-7 p-5 border border-slate-300 dark:border-slate-700 rounded-xl shadow-lg bg-slate-50 dark:bg-slate-800">
-          <h2 className="text-2xl font-semibold mb-5 text-indigo-700 dark:text-indigo-300">
+        <div className="lg:col-span-7 p-5 border border-border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 bg-background">
+          <h3 className="text-xl font-semibold mb-5 text-primary flex items-center gap-2">
+            <span className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-primary">1</span>
+            </span>
             Loan Parameters
-          </h2>
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
             <div>
               <label
@@ -943,10 +948,13 @@ const EMICalculator: React.FC = () => {
         </div>
 
         {/* Suggestion Preferences Section */}
-        <div className="lg:col-span-5 p-5 border border-slate-300 dark:border-slate-700 rounded-xl shadow-lg bg-slate-50 dark:bg-slate-800">
-          <h2 className="text-2xl font-semibold mb-5 text-indigo-700 dark:text-indigo-300">
+        <div className="lg:col-span-5 p-5 border border-border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 bg-background">
+          <h3 className="text-xl font-semibold mb-5 text-primary flex items-center gap-2">
+            <span className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-primary">2</span>
+            </span>
             Optimization Preferences
-          </h2>
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
             <div>
               <label
@@ -1083,17 +1091,17 @@ const EMICalculator: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
         <button
           onClick={handleCalculateAmortization}
-          className="w-full sm:w-auto px-6 py-3 text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md focus:ring-4 focus:outline-none focus:ring-indigo-300 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:focus:ring-indigo-700 transition-all duration-150 ease-in-out"
+          className="w-full sm:w-auto px-6 py-3 text-base font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg shadow-md focus:ring-4 focus:outline-none focus:ring-primary/30 transition-all duration-150 ease-in-out"
         >
           Calculate Amortization
         </button>
         {calculatedEmi !== null && (
-          <div className="p-3 rounded-lg bg-indigo-50 dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 text-center sm:text-left shadow">
+          <div className="p-3 rounded-lg bg-primary/10 text-primary text-center sm:text-left shadow-sm">
             <strong>Calculated EMI: ₹{calculatedEmi.toFixed(2)}</strong>
             {manualEmi &&
               parseFloat(manualEmi) > 0 &&
               Math.abs(calculatedEmi - parseFloat(manualEmi)) > 0.01 && (
-                <span className="block sm:inline sm:ml-2 text-xs text-amber-600 dark:text-amber-400">
+                <span className="block sm:inline sm:ml-2 text-xs text-amber-600">
                   (Manual EMI differs)
                 </span>
               )}
@@ -1102,7 +1110,7 @@ const EMICalculator: React.FC = () => {
       </div>
 
       {errorMessage && (
-        <div className="my-4 p-3.5 text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-400 dark:border-red-500 rounded-lg shadow">
+        <div className="my-4 p-3.5 text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-lg shadow-sm">
           <p>
             <strong>Error:</strong> {errorMessage}
           </p>
@@ -1111,19 +1119,22 @@ const EMICalculator: React.FC = () => {
 
       {/* Amortization Schedule Table */}
       {amortizationSchedule.length > 0 && !errorMessage && (
-        <div className="mt-8 p-2 bg-white dark:bg-slate-800 shadow-xl rounded-xl overflow-hidden">
-          <h3 className="text-xl font-semibold mb-4 px-4 pt-4 text-indigo-700 dark:text-indigo-300">
+        <div className="mt-8 p-2 bg-background border border-border shadow-md hover:shadow-lg transition-all duration-200 rounded-xl overflow-hidden">
+          <h3 className="text-xl font-semibold mb-4 px-4 pt-4 text-primary flex items-center gap-2">
+            <span className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-primary">3</span>
+            </span>
             Amortization Schedule
           </h3>
           <div className="overflow-x-auto max-h-[500px] styled-scrollbar">
             {" "}
             {/* Added styled-scrollbar for potential custom scrollbar styling via global CSS */}
-            <table className="min-w-full text-sm text-left text-slate-700 dark:text-slate-300">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-100 dark:bg-slate-700 dark:text-slate-300 sticky top-0 z-10">
+            <table className="min-w-full text-sm text-left">
+              <thead className="text-xs uppercase bg-muted/50 sticky top-0 z-10">
                 <tr>
                   {[
                     "Month No.",
-                    `Month-Year`,
+                    "Month-Year",
                     "Opening Balance (₹)",
                     "EMI (₹)",
                     "Principal (₹)",
@@ -1142,11 +1153,11 @@ const EMICalculator: React.FC = () => {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              <tbody className="divide-y divide-border">
                 {amortizationSchedule.map((entry) => (
                   <tr
                     key={entry.month}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    className="hover:bg-muted/50 transition-colors"
                   >
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       {entry.month}
@@ -1160,10 +1171,10 @@ const EMICalculator: React.FC = () => {
                     <td className="px-4 py-2.5 whitespace-nowrap text-right">
                       {entry.emi.toFixed(2)}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap text-right text-green-600 dark:text-green-400">
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right text-green-600">
                       {entry.principalPaid.toFixed(2)}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap text-right text-red-600 dark:text-red-400">
+                    <td className="px-4 py-2.5 whitespace-nowrap text-right text-red-600">
                       {entry.interestPaid.toFixed(2)}
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-right font-medium">
@@ -1181,7 +1192,7 @@ const EMICalculator: React.FC = () => {
                   void handleGenerateSuggestions();
                 }}
                 disabled={isCalculatingSuggestions}
-                className="px-6 py-3 text-base font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-md focus:ring-4 focus:outline-none focus:ring-green-300 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-700 transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-6 py-3 text-base font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-sm hover:shadow-md focus:ring-2 focus:outline-none focus:ring-green-300 transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isCalculatingSuggestions
                   ? "Optimizing..."
@@ -1194,11 +1205,11 @@ const EMICalculator: React.FC = () => {
 
       {/* Suggestions Display */}
       {isCalculatingSuggestions && (
-        <div className="mt-6 p-4 text-center text-slate-600 dark:text-slate-300">
+        <div className="mt-6 p-4 text-center text-muted-foreground">
           <div role="status" className="inline-flex items-center">
             <svg
               aria-hidden="true"
-              className="w-6 h-6 mr-2 text-slate-200 animate-spin dark:text-slate-600 fill-indigo-600"
+              className="w-6 h-6 mr-2 text-muted animate-spin fill-primary"
               viewBox="0 0 100 101"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -1220,14 +1231,17 @@ const EMICalculator: React.FC = () => {
       )}
 
       {suggestions.length > 0 && !isCalculatingSuggestions && (
-        <div className="mt-8 p-5 bg-slate-50 dark:bg-slate-800 shadow-xl rounded-xl">
-          <h3 className="text-xl font-semibold mb-5 text-indigo-700 dark:text-indigo-300">
+        <div className="mt-8 p-5 bg-background border border-border shadow-md hover:shadow-lg transition-all duration-200 rounded-xl">
+          <h3 className="text-xl font-semibold mb-5 text-primary flex items-center gap-2">
+            <span className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-primary">4</span>
+            </span>
             Top Loan Optimization Suggestions
           </h3>
           {suggestions[0].id === "no_beneficial_suggestions" ||
           suggestions[0].id === "no_interest_loan" ||
           suggestions[0].id === "no_loan_to_optimize" ? (
-            <p className="p-3 text-slate-600 dark:text-slate-300 bg-indigo-50 dark:bg-slate-700 rounded-md">
+            <p className="p-3 text-muted-foreground bg-muted/50 rounded-md">
               {suggestions[0].description}
             </p>
           ) : (
@@ -1235,36 +1249,36 @@ const EMICalculator: React.FC = () => {
               {suggestions.map((suggestion, index) => (
                 <div
                   key={suggestion.id}
-                  className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg shadow-md hover:shadow-lg transition-shadow bg-white dark:bg-slate-800/50"
+                  className="p-4 border border-border rounded-lg shadow-sm hover:shadow-md transition-all duration-200 bg-background"
                 >
-                  <p className="font-semibold text-md text-indigo-700 dark:text-indigo-400 mb-2">
-                    <span className="bg-indigo-100 dark:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300 rounded-full px-2.5 py-0.5 text-xs font-bold mr-2">
+                  <p className="font-semibold text-md text-primary mb-2">
+                    <span className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-bold mr-2">
                       #{index + 1}
                     </span>
                     {suggestion.description} (Score:{" "}
                     {suggestion.score.toFixed(1)})
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                    <p className="text-green-600 dark:text-green-400">
+                    <p className="text-green-600">
                       Interest Saved:{" "}
                       <span className="font-medium">
                         ₹{suggestion.interestSaved.toFixed(2)}
                       </span>
                     </p>
-                    <p className="text-blue-600 dark:text-blue-400">
+                    <p className="text-blue-600">
                       Tenure Reduced:{" "}
                       <span className="font-medium">
                         {suggestion.tenureReducedMonths} months
                       </span>
                     </p>
                     {suggestion.newTotalInterest !== undefined && (
-                      <p className="text-slate-600 dark:text-slate-300">
+                      <p className="text-muted-foreground">
                         New Total Interest: ₹
                         {suggestion.newTotalInterest.toFixed(2)}
                       </p>
                     )}
                     {suggestion.newTenureMonths !== undefined && (
-                      <p className="text-slate-600 dark:text-slate-300">
+                      <p className="text-muted-foreground">
                         New Tenure: {suggestion.newTenureMonths} months
                       </p>
                     )}
@@ -1273,7 +1287,7 @@ const EMICalculator: React.FC = () => {
                     onClick={() => {
                       openDetailedScheduleModal(suggestion.revisedSchedule);
                     }}
-                    className="mt-3 px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/30 hover:bg-indigo-200 dark:hover:bg-indigo-500/50 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors"
+                    className="mt-3 px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors"
                   >
                     View Detailed Schedule
                   </button>
@@ -1287,26 +1301,26 @@ const EMICalculator: React.FC = () => {
       {/* Detailed Schedule Modal */}
       {showDetailedScheduleModal && detailedScheduleToShow && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex justify-center items-center z-50 p-4 transition-opacity duration-300 ease-in-out"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4 transition-opacity duration-300 ease-in-out"
           onClick={() => {
             closeDetailedScheduleModal();
           }}
         >
           <div
-            className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+            className="bg-background p-5 md:p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-border"
             onClick={(e) => {
               e.stopPropagation();
             }}
           >
             <div className="flex justify-between items-center mb-4">
-              <h4 className="text-xl font-semibold text-indigo-700 dark:text-indigo-300">
+              <h4 className="text-xl font-semibold text-primary">
                 Detailed Amortization (Suggestion)
               </h4>
               <button
                 onClick={() => {
                   closeDetailedScheduleModal();
                 }}
-                className="p-1.5 rounded-full text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+                className="p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1384,7 +1398,7 @@ const EMICalculator: React.FC = () => {
                 onClick={() => {
                   closeDetailedScheduleModal();
                 }}
-                className="px-5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors"
+                className="px-5 py-2 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"
               >
                 Close
               </button>
