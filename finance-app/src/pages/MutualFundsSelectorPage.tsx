@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/card";
 import { MutualFundCard } from "@/components/MutualFundCard";
 import { MutualFundsTable } from "@/components/MutualFundsTable";
-import { ArrowLeft, ChevronDown, Info } from "lucide-react";
+import { ArrowLeft, ChevronDown, Info, TrendingUp } from "lucide-react";
 import mutualFundsData from "@/data/ranked_index_mutual_funds.json";
+import { Navigation } from "@/components/Navigation";
 
 const fundTypeOptions: FundTypeOption[] = [
   {
@@ -71,33 +72,45 @@ export const MutualFundsSelectorPage: React.FC = () => {
       : [];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Navigation */}
+      <Navigation currentPage="tools" />
+
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                void navigate("/");
-              }}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Home
-            </Button>
-            <h1 className="text-2xl font-bold">Mutual Funds Selector</h1>
+      <header className="border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void navigate("/tools");
+                }}
+                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Tools
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-primary" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                Mutual Funds Selector
+              </h1>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="flex-grow container mx-auto px-6 py-8">
         {/* Fund Type Selection */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Select Fund Type</CardTitle>
+        <Card className="mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl">Select Fund Type</CardTitle>
             <CardDescription>
               Choose the type of mutual fund you want to explore
             </CardDescription>
@@ -120,13 +133,13 @@ export const MutualFundsSelectorPage: React.FC = () => {
               </Button>
 
               {dropdownOpen && (
-                <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-background border border-border rounded-md shadow-lg">
                   {fundTypeOptions.map((option) => (
                     <button
                       key={option.value}
-                      className={`w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-md last:rounded-b-md ${
+                      className={`w-full px-4 py-3 text-left hover:bg-accent first:rounded-t-md last:rounded-b-md ${
                         option.comingSoon
-                          ? "opacity-50 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent"
+                          ? "opacity-60 cursor-not-allowed hover:bg-transparent"
                           : ""
                       }`}
                       onClick={() => {
@@ -137,12 +150,12 @@ export const MutualFundsSelectorPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="font-medium">{option.label}</div>
                         {option.comingSoon && (
-                          <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded-full">
+                          <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
                             Coming Soon
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="text-sm text-muted-foreground">
                         {option.description}
                       </div>
                     </button>
@@ -155,7 +168,7 @@ export const MutualFundsSelectorPage: React.FC = () => {
 
         {/* Data Refresh Date */}
         {selectedOption && (
-          <div className="mb-6 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
             <Info className="h-4 w-4" />
             <span>Data last refreshed: {selectedOption.dataRefreshDate}</span>
           </div>
@@ -164,7 +177,7 @@ export const MutualFundsSelectorPage: React.FC = () => {
         {/* Top 5 Recommendations */}
         {selectedFundType && topFiveFunds.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-xl font-semibold mb-4 pb-2 border-b border-border">
               Top 5 Recommended Funds
             </h2>
             <div className="space-y-6">
@@ -197,22 +210,37 @@ export const MutualFundsSelectorPage: React.FC = () => {
 
         {/* Methodology Information */}
         {selectedFundType === "index" && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Info className="h-5 w-5" />
+          <Card className="mb-8 shadow-sm hover:shadow-md transition-shadow duration-200 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Info className="h-5 w-5 text-primary" />
                 Ranking Methodology
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 {typedMutualFundsData.methodology.description}
               </p>
-              <div className="mt-2 text-sm">
-                <span className="font-medium">Expense Ratio Weight:</span>{" "}
-                {typedMutualFundsData.methodology.expenseRatioWeight} |
-                <span className="font-medium ml-2">Tracking Error Weight:</span>{" "}
-                {typedMutualFundsData.methodology.trackingErrorWeight}
+              <div className="mt-3 p-3 bg-background rounded-md border border-border text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                  <div className="flex items-center">
+                    <span className="font-medium mr-2">
+                      Expense Ratio Weight:
+                    </span>
+                    <span className="text-primary font-semibold">
+                      {typedMutualFundsData.methodology.expenseRatioWeight}
+                    </span>
+                  </div>
+                  <div className="hidden sm:block text-muted-foreground">|</div>
+                  <div className="flex items-center">
+                    <span className="font-medium mr-2">
+                      Tracking Error Weight:
+                    </span>
+                    <span className="text-primary font-semibold">
+                      {typedMutualFundsData.methodology.trackingErrorWeight}
+                    </span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -224,29 +252,35 @@ export const MutualFundsSelectorPage: React.FC = () => {
             {!showFullTable ? (
               <div className="text-center">
                 <Button
-                  onClick={() => setShowFullTable(true)}
+                  onClick={() => {
+                    setShowFullTable(true);
+                  }}
                   variant="outline"
                   size="lg"
+                  className="group"
                 >
                   See All {typedMutualFundsData.totalFunds} Funds
+                  <ChevronDown className="ml-2 h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
                 </Button>
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
                   <h2 className="text-xl font-semibold">
                     All {selectedOption?.label}
                   </h2>
                   <Button
-                    onClick={() => setShowFullTable(false)}
+                    onClick={() => {
+                      setShowFullTable(false);
+                    }}
                     variant="outline"
                     size="sm"
                   >
                     Show Less
                   </Button>
                 </div>
-                <Card>
-                  <CardContent className="p-6">
+                <Card className="shadow-sm">
+                  <CardContent className="p-0 overflow-hidden">
                     <MutualFundsTable
                       funds={typedMutualFundsData.allRankings}
                     />
@@ -257,21 +291,45 @@ export const MutualFundsSelectorPage: React.FC = () => {
           </div>
         )}
 
-        {/* No selection state */}
+        {/* Empty State */}
         {!selectedFundType && (
           <div className="text-center py-12">
-            <div className="text-gray-500 dark:text-gray-400">
-              <div className="text-4xl mb-4">📈</div>
-              <h3 className="text-lg font-medium mb-2">
-                Select a fund type to get started
-              </h3>
-              <p className="text-sm">
-                Choose from the dropdown above to see our top recommendations
-              </p>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="w-8 h-8 text-primary" />
             </div>
+            <h3 className="text-xl font-semibold mb-2">
+              Select a fund type to get started
+            </h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Choose from the dropdown above to see our top recommendations
+            </p>
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center space-x-2 mb-4 md:mb-0">
+              <span className="text-sm text-muted-foreground">
+                © 2025 All In One Finance. All rights reserved.
+              </span>
+            </div>
+            <div className="flex space-x-6 text-sm text-muted-foreground">
+              <button className="hover:text-foreground transition-colors">
+                Privacy
+              </button>
+              <button className="hover:text-foreground transition-colors">
+                Terms
+              </button>
+              <button className="hover:text-foreground transition-colors">
+                Support
+              </button>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

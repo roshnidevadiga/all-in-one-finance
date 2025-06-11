@@ -10,73 +10,79 @@ export const MutualFundsTable: React.FC<MutualFundsTableProps> = ({
 }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse border border-gray-300 dark:border-gray-600">
+      <table className="w-full border-collapse">
         <thead>
-          <tr className="bg-gray-100 dark:bg-gray-800">
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">
+          <tr className="bg-accent/50">
+            <th className="border-b border-border px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Rank
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">
+            <th className="border-b border-border px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Fund Name
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               AUM (Cr)
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Expense Ratio (%)
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Tracking Error (%)
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               3Y CAGR (%)
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Expense Rank
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Tracking Rank
             </th>
-            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+            <th className="border-b border-border px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Weighted Score
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border">
           {funds.map((fund, index) => (
             <tr
               key={index}
               className={
                 index % 2 === 0
-                  ? "bg-gray-50 dark:bg-gray-900"
-                  : "bg-white dark:bg-gray-800"
+                  ? "bg-background hover:bg-accent/20 transition-colors"
+                  : "bg-accent/10 hover:bg-accent/20 transition-colors"
               }
             >
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                {fund.rank}
+              <td className="px-4 py-3 whitespace-nowrap text-sm">
+                <span
+                  className={fund.rank <= 3 ? "text-primary font-semibold" : ""}
+                >
+                  {fund.rank}
+                </span>
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-medium">
+              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                 {fund.fundName}
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                 ₹{fund.aum.toLocaleString()}
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                 {fund.expenseRatio}
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                 {fund.trackingError}
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-green-600">
-                {fund.cagr3y}
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                <span className="text-green-500 font-medium">
+                  {fund.cagr3y}
+                </span>
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                 {fund.expenseRatioRank}
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
                 {fund.trackingErrorRank}
               </td>
-              <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
                 {fund.weightedScore.toFixed(2)}
               </td>
             </tr>
