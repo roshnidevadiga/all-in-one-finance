@@ -6,6 +6,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import "./App.css"; // You can keep or remove this if not needed for global styles beyond index.css
 import { useAuth } from "./contexts/AuthContext";
 import EMICalculatorPage from "./pages/EMICalculatorPage"; // Import the new page
+import { MutualFundsSelectorPage } from "./pages/MutualFundsSelectorPage";
 
 function App() {
   const { currentUser, loading } = useAuth();
@@ -42,6 +43,16 @@ function App() {
           element={
             <ProtectedRoute>
               <EMICalculatorPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Route for Mutual Funds Selector */}
+        <Route
+          path="/tools/mutual-funds-selector"
+          element={
+            <ProtectedRoute>
+              <MutualFundsSelectorPage />
             </ProtectedRoute>
           }
         />

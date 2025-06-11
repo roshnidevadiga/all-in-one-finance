@@ -37,19 +37,10 @@ export const MainPage: React.FC = (): React.ReactElement => {
       id: "emi_calculator",
     },
     {
-      title: "Investment Returns",
-      description: "Calculate returns on various investment options",
+      title: "Mutual Funds Selector",
+      description: "Select the best mutual funds for your investment",
       icon: "📈",
-    },
-    {
-      title: "Budget Planner",
-      description: "Plan and track your monthly budget",
-      icon: "📊",
-    },
-    {
-      title: "Tax Calculator",
-      description: "Estimate your income tax liability",
-      icon: "📋",
+      id: "mutual_funds_selector",
     },
   ];
 
@@ -115,6 +106,8 @@ export const MainPage: React.FC = (): React.ReactElement => {
                   onClick={() => {
                     if (tool.id === "emi_calculator") {
                       void navigate("/tools/emi-calculator");
+                    } else if (tool.id === "mutual_funds_selector") {
+                      void navigate("/tools/mutual-funds-selector");
                     } else {
                       // Handle other tools if necessary, or alert that they are not yet implemented
                       alert(`Tool "${tool.title}" is not yet implemented.`);
