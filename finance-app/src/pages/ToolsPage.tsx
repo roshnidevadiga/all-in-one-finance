@@ -1,26 +1,22 @@
 import React from "react";
 import { Navigation } from "@/components/Navigation";
 import { ToolsSection } from "@/components/ToolsSection";
-import { useAuth } from "../contexts/AuthContext";
 
-export const MainPage: React.FC = (): React.ReactElement => {
-  const { currentUser } = useAuth();
-
+export const ToolsPage: React.FC = (): React.ReactElement => {
   return (
     <div className="min-h-screen flex flex-col">
-      <Navigation currentPage="home" />
+      <Navigation currentPage="tools" />
 
       <main className="flex-grow">
-        {/* Simple welcome section */}
+        {/* Tools header */}
         <section className="py-16 bg-gradient-to-br from-primary/5 via-background to-accent/5">
           <div className="container mx-auto px-6 text-center">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Welcome
-              {currentUser?.displayName ? `, ${currentUser.displayName}` : ""}
+              Financial Tools
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Choose from our financial tools to calculate EMI, analyze mutual
-              funds, and make informed investment decisions.
+              Powerful calculators and analyzers to help you make informed
+              financial decisions.
             </p>
           </div>
         </section>

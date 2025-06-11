@@ -22,11 +22,12 @@ export interface MutualFundData {
   allRankings: MutualFund[];
 }
 
-export type FundType = "index" | "equity" | "debt" | "hybrid";
+export type FundType = "index" | "equity" | "debt" | "hybrid" | "midcap" | "smallcap";
 
 export interface FundTypeOption {
   value: FundType;
   label: string;
   description: string;
   dataRefreshDate: string;
+  comingSoon?: boolean;
 } 

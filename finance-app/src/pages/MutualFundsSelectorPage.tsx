@@ -25,6 +25,20 @@ const fundTypeOptions: FundTypeOption[] = [
     description: "Passive funds that track market indices",
     dataRefreshDate: "8th June 2025",
   },
+  {
+    value: "midcap",
+    label: "Mid Cap Funds",
+    description: "Funds investing in mid-sized companies",
+    dataRefreshDate: "Coming Soon",
+    comingSoon: true,
+  },
+  {
+    value: "smallcap",
+    label: "Small Cap Funds",
+    description: "Funds investing in small-sized companies",
+    dataRefreshDate: "Coming Soon",
+    comingSoon: true,
+  },
 ];
 
 export const MutualFundsSelectorPage: React.FC = () => {
@@ -37,7 +51,12 @@ export const MutualFundsSelectorPage: React.FC = () => {
 
   const typedMutualFundsData = mutualFundsData as MutualFundData;
 
-  const handleFundTypeSelect = (fundType: FundType) => {
+  const handleFundTypeSelect = (fundType: FundType, comingSoon?: boolean) => {
+    if (comingSoon) {
+      // Don't select if it's coming soon
+      setDropdownOpen(false);
+      return;
+    }
     setSelectedFundType(fundType);
     setDropdownOpen(false);
     setShowFullTable(false);
@@ -105,10 +124,24 @@ export const MutualFundsSelectorPage: React.FC = () => {
                   {fundTypeOptions.map((option) => (
                     <button
                       key={option.value}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-md last:rounded-b-md"
-                      onClick={() => handleFundTypeSelect(option.value)}
+                      className={`w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-md last:rounded-b-md ${
+                        option.comingSoon
+                          ? "opacity-50 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent"
+                          : ""
+                      }`}
+                      onClick={() => {
+                        handleFundTypeSelect(option.value, option.comingSoon);
+                      }}
+                      disabled={option.comingSoon}
                     >
-                      <div className="font-medium">{option.label}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">{option.label}</div>
+                        {option.comingSoon && (
+                          <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded-full">
+                            Coming Soon
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">
                         {option.description}
                       </div>

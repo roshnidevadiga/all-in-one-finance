@@ -7,6 +7,7 @@ import "./App.css"; // You can keep or remove this if not needed for global styl
 import { useAuth } from "./contexts/AuthContext";
 import EMICalculatorPage from "./pages/EMICalculatorPage"; // Import the new page
 import { MutualFundsSelectorPage } from "./pages/MutualFundsSelectorPage";
+import { ToolsPage } from "./pages/ToolsPage";
 
 function App() {
   const { currentUser, loading } = useAuth();
@@ -43,6 +44,16 @@ function App() {
           element={
             <ProtectedRoute>
               <EMICalculatorPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Route for Tools page */}
+        <Route
+          path="/tools"
+          element={
+            <ProtectedRoute>
+              <ToolsPage />
             </ProtectedRoute>
           }
         />

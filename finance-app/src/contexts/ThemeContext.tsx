@@ -16,7 +16,7 @@ export function ThemeProvider({
   children: React.ReactNode;
 }): React.ReactNode {
   const [theme, setTheme] = useState<Theme>(() => {
-    // Get from localStorage or default to dark
+    // Get from localStorage or default to dark to match the AlphaStock aesthetic
     const savedTheme = localStorage.getItem("theme") as Theme | null;
     return savedTheme ?? "dark";
   });
